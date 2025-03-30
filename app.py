@@ -19,6 +19,9 @@ import uuid
 from feedgen.feed import FeedGenerator
 import requests
 
+# Initialize timezone from environment variable
+time.tzset()
+
 from models import db, User, RadioStation, Recording, RecurringRecording, Podcast, PodcastEpisode, AppSettings
 from forms import LoginForm, UserProfileForm, RadioStationForm, RecordingForm, RecurringRecordingForm, PodcastForm, SettingsForm
 from config import Config
