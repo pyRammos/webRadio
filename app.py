@@ -360,7 +360,7 @@ def add_recurring_recording():
                 minute=recurring.start_time.minute
             )
         elif recurring.schedule_type == 'weekly':
-            days = recurring.days_of_week.split(',')
+            days = recurring.days_of_week.split(',') if ',' in recurring.days_of_week else [recurring.days_of_week]
             trigger = CronTrigger(
                 day_of_week=','.join(days),
                 hour=recurring.start_time.hour,
@@ -369,6 +369,34 @@ def add_recurring_recording():
         elif recurring.schedule_type == 'weekends':
             trigger = CronTrigger(
                 day_of_week='sat,sun',
+                hour=recurring.start_time.hour,
+                minute=recurring.start_time.minute
+            )
+        elif recurring.schedule_type == 'weekdays':
+            trigger = CronTrigger(
+                day_of_week='mon,tue,wed,thu,fri',
+                hour=recurring.start_time.hour,
+                minute=recurring.start_time.minute
+            )
+        elif recurring.schedule_type == 'monthly':
+            # Handle monthly schedule with day of month
+            day_of_month = request.form.get('days_of_month', '1')
+            if day_of_month == 'last':
+                # For last day of month, use day='last'
+                trigger = CronTrigger(
+                    day='last',
+                    hour=recurring.start_time.hour,
+                    minute=recurring.start_time.minute
+                )
+            else:
+                trigger = CronTrigger(
+                    day=day_of_month,
+                    hour=recurring.start_time.hour,
+                    minute=recurring.start_time.minute
+                )
+        else:
+            # Default fallback to daily if something goes wrong
+            trigger = CronTrigger(
                 hour=recurring.start_time.hour,
                 minute=recurring.start_time.minute
             )
