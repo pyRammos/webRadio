@@ -1,0 +1,56 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Flask
+instance/
+.webassets-cache
+
+# Database files
+*.db
+*.sqlite
+
+# Log files
+*.log
+logs/
+
+# Media files
+recordings/
+static/uploads/
+static/images/
+
+# Environment variables
+.env
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Docker files (to avoid recursion)
+Dockerfile
+docker-compose.yml
+
+# Documentation
+DOCKER_SETUP.md
+GITIGNORE_EXPLANATION.md
+
+# Example files
+example.rss

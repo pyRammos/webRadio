@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  webradio:
+    build: .
+    container_name: webradio
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount recordings directory as a bind mount for persistence
+      - ./data/recordings:/app/recordings
+      # Mount uploads directory for podcast images
+      - ./data/images:/app/static/images
+      # Mount database file directly (it's in the root directory, not instance)
+      - ./data/webradio.db:/app/webradio.db
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:///webradio.db
+      - RECORDINGS_DIR=/app/recordings
+      - UPLOAD_FOLDER=/app/static/images
+      # FFMPEG_PATH is set for clarity, though it would work without it
+      - FFMPEG_PATH=/usr/bin/ffmpeg
+    networks:
+      - webradio-network
+
+networks:
+  webradio-network:
+    driver: bridge
