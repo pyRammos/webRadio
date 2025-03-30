@@ -49,6 +49,26 @@ A web application for capturing internet audio streams and saving them for playb
 
 ### Docker Installation
 
+#### Option 1: Using Pre-built Docker Image
+
+1. Clone this repository
+   ```bash
+   git clone https://github.com/yourusername/webradio.git
+   cd webradio
+   ```
+
+2. Run the setup script to create necessary directories and files
+   ```bash
+   ./setup_docker.sh
+   ```
+
+3. Start the application
+   ```bash
+   docker compose up -d
+   ```
+
+#### Option 2: Building Your Own Docker Image
+
 1. Clone this repository
    ```bash
    git clone https://github.com/yourusername/webradio.git
@@ -65,7 +85,12 @@ A web application for capturing internet audio streams and saving them for playb
    docker build -t webradio:latest .
    ```
 
-4. Start the application
+4. Edit docker-compose.yml to use your local image
+   ```bash
+   # Change "image: teleram/webradio:latest" to "image: webradio:latest"
+   ```
+
+5. Start the application
    ```bash
    docker compose up -d
    ```
@@ -100,6 +125,14 @@ Access the web interface at http://localhost:5000 after starting the application
 ## Recent Improvements
 
 See [AmazonQ.md](AmazonQ.md) for details on recent improvements to the application.
+
+## Docker Hub
+
+The WebRadio Recorder Docker image is available on Docker Hub:
+
+```bash
+docker pull teleram/webradio:latest
+```
 
 ## License
 

@@ -62,38 +62,6 @@ else
     echo -e "${YELLOW}Note: .env file already exists, skipping creation${NC}"
 fi
 
-# Create or update docker-compose.yml
-echo -e "${BLUE}Creating docker-compose.yml file...${NC}"
-cat > "${SCRIPT_DIR}/docker-compose.yml" << EOF
-services:
-  webradio:
-    image: webradio:latest
-    container_name: webradio
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./data/recordings:/app/recordings
-      - ./data/images:/app/static/images
-      - ./data/webradio.db:/data/webradio.db
-      - /etc/localtime:/etc/localtime:ro  # Mount host timezone (read-only)
-    env_file:
-      - .env
-    environment:
-      - DATABASE_URL=sqlite:////data/webradio.db
-      - RECORDINGS_DIR=/app/recordings
-      - UPLOAD_FOLDER=/app/static/images
-      - TZ=Europe/London  # Set your timezone here (change as needed)
-    networks:
-      - webradio-network
-
-networks:
-  webradio-network:
-    driver: bridge
-EOF
-echo -e "${GREEN}✓ Created docker-compose.yml${NC}"
-echo -e "${YELLOW}Note: Please edit the TZ environment variable in docker-compose.yml to match your timezone${NC}"
-
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     echo -e "${YELLOW}Warning: Docker is not installed or not in PATH${NC}"
@@ -106,14 +74,8 @@ if ! command -v docker compose &> /dev/null; then
     echo -e "${YELLOW}Please install Docker Compose before continuing${NC}"
 fi
 
-# Make the script executable
-chmod +x "${SCRIPT_DIR}/setup_docker.sh"
-
 echo ""
 echo -e "${GREEN}=== Setup Complete ===${NC}"
-echo -e "${BLUE}To build the WebRadio Recorder Docker image:${NC}"
-echo -e "  docker build -t webradio:latest ."
-echo ""
 echo -e "${BLUE}To start the application:${NC}"
 echo -e "  docker compose up -d"
 echo ""
