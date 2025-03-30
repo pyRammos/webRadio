@@ -73,11 +73,13 @@ class RecurringRecordingForm(FlaskForm):
     name = StringField('Recording Name', validators=[DataRequired(), Length(max=100)])
     station_id = SelectField('Radio Station', coerce=int, validators=[DataRequired()])
     schedule_type = SelectField('Schedule Type', choices=[
-        ('daily', 'Daily'),
-        ('weekly', 'Weekly'),
-        ('weekends', 'Weekends Only')
+        ('daily', 'Daily (Every day)'),
+        ('weekdays', 'Weekdays (Monday to Friday)'),
+        ('weekends', 'Weekends (Saturday and Sunday)'),
+        ('weekly', 'Weekly (Same day every week)'),
+        ('monthly', 'Monthly (Same day every month)')
     ])
-    days_of_week = SelectMultipleField('Days of Week', choices=[
+    days_of_week = SelectField('Day of Week', choices=[
         ('0', 'Monday'),
         ('1', 'Tuesday'),
         ('2', 'Wednesday'),
@@ -145,7 +147,11 @@ class RecurringRecordingForm(FlaskForm):
     
     def validate_days_of_week(self, field):
         if self.schedule_type.data == 'weekly' and not field.data:
-            raise ValidationError('At least one day must be selected for weekly schedule')
+            raise ValidationError('Day selection is required for weekly schedule')
+            
+    def validate_days_of_month(self, field):
+        if self.schedule_type.data == 'monthly' and not field.data:
+            raise ValidationError('Day selection is required for monthly schedule')
 
 class PodcastForm(FlaskForm):
     title = StringField('Podcast Title', validators=[DataRequired(), Length(max=100)])
