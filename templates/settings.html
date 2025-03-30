@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Application Settings</h1>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('settings') }}">
+                {{ form.hidden_tag() }}
+                
+                <h3>NextCloud Integration</h3>
+                <div class="mb-3">
+                    {{ form.nextcloud_url.label(class="form-label") }}
+                    {{ form.nextcloud_url(class="form-control") }}
+                    {% for error in form.nextcloud_url.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                    <small class="form-text text-muted">Example: https://your-nextcloud-instance.com</small>
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.nextcloud_username.label(class="form-label") }}
+                    {{ form.nextcloud_username(class="form-control") }}
+                    {% for error in form.nextcloud_username.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.nextcloud_password.label(class="form-label") }}
+                    {{ form.nextcloud_password(class="form-control") }}
+                    {% for error in form.nextcloud_password.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                    <small class="form-text text-muted">Leave blank to keep current password</small>
+                </div>
+                
+                <hr>
+                
+                <h3>Pushover Notifications</h3>
+                <div class="mb-3">
+                    {{ form.pushover_user_key.label(class="form-label") }}
+                    {{ form.pushover_user_key(class="form-control") }}
+                    {% for error in form.pushover_user_key.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.pushover_api_token.label(class="form-label") }}
+                    {{ form.pushover_api_token(class="form-control") }}
+                    {% for error in form.pushover_api_token.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                
+                <hr>
+                
+                <h3>FFmpeg Configuration</h3>
+                <div class="mb-3">
+                    {{ form.ffmpeg_path.label(class="form-label") }}
+                    {{ form.ffmpeg_path(class="form-control") }}
+                    {% for error in form.ffmpeg_path.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                    <small class="form-text text-muted">Full path to FFmpeg executable (e.g., /usr/bin/ffmpeg)</small>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - WebRadio Recorder{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>{{ title }}</h1>
+        
+        <form method="POST" class="mt-4" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+            
+            <div class="mb-3">
+                {{ form.title.label(class="form-label") }}
+                {{ form.title(class="form-control") }}
+                {% if form.title.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.title.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.description.label(class="form-label") }}
+                {{ form.description(class="form-control", rows=3) }}
+                {% if form.description.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.description.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.language.label(class="form-label") }}
+                {{ form.language(class="form-select") }}
+                {% if form.language.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.language.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.author.label(class="form-label") }}
+                {{ form.author(class="form-control") }}
+                {% if form.author.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.author.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.image.label(class="form-label") }}
+                {{ form.image(class="form-control") }}
+                <div class="form-text">Square image recommended (1400x1400 pixels)</div>
+                {% if form.image.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.image.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <h4 class="mt-4">iTunes Podcast Settings</h4>
+            
+            <div class="mb-3">
+                {{ form.itunes_category.label(class="form-label") }}
+                {{ form.itunes_category(class="form-select") }}
+                <div class="form-text">Category for podcast directories like Apple Podcasts</div>
+                {% if form.itunes_category.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.itunes_category.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.itunes_explicit.label(class="form-label") }}
+                {{ form.itunes_explicit(class="form-select") }}
+                <div class="form-text">Indicates if your podcast contains explicit content</div>
+                {% if form.itunes_explicit.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.itunes_explicit.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.itunes_owner_email.label(class="form-label") }}
+                {{ form.itunes_owner_email(class="form-control") }}
+                <div class="form-text">Email address for podcast directory inquiries (not shown publicly)</div>
+                {% if form.itunes_owner_email.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.itunes_owner_email.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('podcasts') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">{{ 'Update' if podcast else 'Create' }} Podcast</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

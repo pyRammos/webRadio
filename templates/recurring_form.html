@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - WebRadio Recorder{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>{{ title }}</h1>
+        
+        <form method="POST" class="mt-4" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+            
+            <div class="mb-3">
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control") }}
+                {% if form.name.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.name.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.station_id.label(class="form-label") }}
+                {{ form.station_id(class="form-select") }}
+                {% if form.station_id.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.station_id.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.schedule_type.label(class="form-label") }}
+                {{ form.schedule_type(class="form-select") }}
+                {% if form.schedule_type.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.schedule_type.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3 days-of-week-container" style="display: none;">
+                {{ form.days_of_week.label(class="form-label") }}
+                <div class="btn-group d-flex flex-wrap" role="group">
+                    {% for subfield in form.days_of_week %}
+                        <div class="form-check form-check-inline">
+                            {{ subfield(class="btn-check") }}
+                            {{ subfield.label(class="btn btn-outline-primary") }}
+                        </div>
+                    {% endfor %}
+                </div>
+                {% if form.days_of_week.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.days_of_week.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.start_time.label(class="form-label") }}
+                {{ form.start_time(class="form-control", type="time") }}
+                {% if form.start_time.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.start_time.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.duration.label(class="form-label") }}
+                <div class="input-group">
+                    {{ form.duration(class="form-control") }}
+                    <span class="input-group-text">minutes</span>
+                </div>
+                {% if form.duration.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.duration.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.keep_recordings.label(class="form-label") }}
+                {{ form.keep_recordings(class="form-select") }}
+                <div class="form-text">Number of recordings to keep before automatically deleting older ones</div>
+                {% if form.keep_recordings.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.keep_recordings.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <h4 class="mt-4">Additional Storage Options</h4>
+            
+            <div class="mb-3 form-check">
+                {{ form.save_to_local(class="form-check-input") }}
+                {{ form.save_to_local.label(class="form-check-label") }}
+            </div>
+            
+            <div class="mb-3 local-options" style="display: none;">
+                {{ form.local_base_dir.label(class="form-label") }}
+                {{ form.local_base_dir(class="form-control") }}
+                <div class="form-text">Base directory where recordings will be saved in an organized folder structure</div>
+            </div>
+            
+            <div class="mb-3 form-check">
+                {{ form.save_to_nextcloud(class="form-check-input") }}
+                {{ form.save_to_nextcloud.label(class="form-check-label") }}
+            </div>
+            
+            <div class="mb-3 nextcloud-options" style="display: none;">
+                {{ form.nextcloud_base_dir.label(class="form-label") }}
+                {{ form.nextcloud_base_dir(class="form-control") }}
+                <div class="form-text">Base directory on NextCloud where recordings will be saved</div>
+            </div>
+            
+            <h4 class="mt-4">Notification Options</h4>
+            
+            <div class="mb-3 form-check">
+                {{ form.send_notification(class="form-check-input") }}
+                {{ form.send_notification.label(class="form-check-label") }}
+                <div class="form-text">Send a Pushover notification when recordings complete</div>
+            </div>
+            
+            <h4 class="mt-4">Podcast Options</h4>
+            
+            <div class="mb-3 form-check">
+                {{ form.create_podcast(class="form-check-input") }}
+                {{ form.create_podcast.label(class="form-check-label") }}
+            </div>
+            
+            <div class="podcast-options" style="display: none;">
+                <div class="mb-3">
+                    {{ form.podcast_title.label(class="form-label") }}
+                    {{ form.podcast_title(class="form-control") }}
+                    <div class="form-text">Leave blank to use the recording name</div>
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.podcast_description.label(class="form-label") }}
+                    {{ form.podcast_description(class="form-control", rows=3) }}
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.podcast_language.label(class="form-label") }}
+                    {{ form.podcast_language(class="form-select") }}
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.podcast_author.label(class="form-label") }}
+                    {{ form.podcast_author(class="form-control") }}
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.podcast_image.label(class="form-label") }}
+                    {{ form.podcast_image(class="form-control") }}
+                    <div class="form-text">Square image recommended (1400x1400 pixels)</div>
+                </div>
+                
+                <!-- iTunes specific fields -->
+                <h5 class="mt-3">iTunes Podcast Settings</h5>
+                
+                <div class="mb-3">
+                    <label class="form-label">iTunes Category</label>
+                    <select class="form-select" name="itunes_category">
+                        <option value="Arts">Arts</option>
+                        <option value="Business">Business</option>
+                        <option value="Comedy">Comedy</option>
+                        <option value="Education">Education</option>
+                        <option value="Fiction">Fiction</option>
+                        <option value="Government">Government</option>
+                        <option value="Health & Fitness">Health & Fitness</option>
+                        <option value="History">History</option>
+                        <option value="Kids & Family">Kids & Family</option>
+                        <option value="Leisure">Leisure</option>
+                        <option value="Music">Music</option>
+                        <option value="News">News</option>
+                        <option value="Religion & Spirituality">Religion & Spirituality</option>
+                        <option value="Science">Science</option>
+                        <option value="Society & Culture">Society & Culture</option>
+                        <option value="Sports">Sports</option>
+                        <option value="Technology" selected>Technology</option>
+                        <option value="True Crime">True Crime</option>
+                        <option value="TV & Film">TV & Film</option>
+                    </select>
+                    <div class="form-text">Category for podcast directories like Apple Podcasts</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Explicit Content</label>
+                    <select class="form-select" name="itunes_explicit">
+                        <option value="no" selected>No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                    <div class="form-text">Indicates if your podcast contains explicit content</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Owner Email</label>
+                    <input type="email" class="form-control" name="itunes_owner_email">
+                    <div class="form-text">Email address for podcast directory inquiries (not shown publicly)</div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('recurring_recordings') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Schedule Recurring Recording</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const scheduleTypeSelect = document.getElementById('schedule_type');
+        const daysOfWeekContainer = document.querySelector('.days-of-week-container');
+        
+        const saveToLocalCheckbox = document.getElementById('save_to_local');
+        const localOptions = document.querySelector('.local-options');
+        
+        const saveToNextcloudCheckbox = document.getElementById('save_to_nextcloud');
+        const nextcloudOptions = document.querySelector('.nextcloud-options');
+        
+        const createPodcastCheckbox = document.getElementById('create_podcast');
+        const podcastOptions = document.querySelector('.podcast-options');
+        
+        // Initial state
+        if (scheduleTypeSelect.value === 'weekly') {
+            daysOfWeekContainer.style.display = 'block';
+        }
+        
+        if (saveToLocalCheckbox.checked) {
+            localOptions.style.display = 'block';
+        }
+        
+        if (saveToNextcloudCheckbox.checked) {
+            nextcloudOptions.style.display = 'block';
+        }
+        
+        if (createPodcastCheckbox.checked) {
+            podcastOptions.style.display = 'block';
+        }
+        
+        // Toggle days of week selection based on schedule type
+        scheduleTypeSelect.addEventListener('change', function() {
+            if (this.value === 'weekly') {
+                daysOfWeekContainer.style.display = 'block';
+            } else {
+                daysOfWeekContainer.style.display = 'none';
+            }
+        });
+        
+        // Toggle local options
+        saveToLocalCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                localOptions.style.display = 'block';
+            } else {
+                localOptions.style.display = 'none';
+            }
+        });
+        
+        // Toggle NextCloud options
+        saveToNextcloudCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                nextcloudOptions.style.display = 'block';
+            } else {
+                nextcloudOptions.style.display = 'none';
+            }
+        });
+        
+        // Toggle podcast options
+        createPodcastCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                podcastOptions.style.display = 'block';
+            } else {
+                podcastOptions.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

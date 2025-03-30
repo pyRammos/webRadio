@@ -1,0 +1,68 @@
+## Core Business Need
+The application will allow the user to capture internet audio streams and save them for playback later. The use case is mainly recording radio shows that can be listened later. Recordings can be one-offs, or recurring ones (some daily, others weekly, some on weekends only).  For convenience, the recordings can be accessed through the Apple Podcasts application.
+
+## User Personas
+
+
+
+## Usability Requirements:
+1. **Naming Conventions**
+   - The user creates the audio sources by providing a name (we will call it {RADIO_STATION}) and the url of the audio stream
+   - When scheduling a recording the user will provide a recording name {NAME}, duration, and start time.
+   - Users may be on different timezones. All operations are based on the server’s local timezone. The user should be able to see the local time on the server at all times.
+   - Recordings will be names {NAME}YYMMDD-DDD. So, for a recording name called Test, recorded today, it will be Test250329-Sat.ext
+
+
+## Main requirements
+
+1. **Stream Recording**
+   - Record audio from any {RADIO_STATION}
+   - Support various streaming formats compatible with FFmpeg
+   - Allow one-time and recurring recording schedules
+   - User selects the start date and time for the recording.
+   - Enable duration-based recordings (record for X minutes/hours)
+   - The application will run on non-critical hardware and errors may occur. If a recording is interrupted (app restart, network loss, etc), the application should resume the recording
+   - The user can select how many recurring recordings to keep. If they say for example keep 10, when the 11th recording happens, the first one is deleted. This is applicable only to recurring recordings.
+   - The user should be able to select additional save locations: 1/A local folder (external to the folder the application is using to save files), and 2/Next Cloud. Neither of the two additional save location will have their files deleted by the application.
+   - For files stored in additional save locations, ask the user to provide a base dir {BASE}. Recordings will be placed using a folder structure that will be {BASE}/{NAME}/YYYY/MM-MMM/
+   - For recurring recordings only, add the option to create a podcast. Ask for all required tags (Name, description, image, language, etc)
+
+
+
+2. **Scheduling System**
+   - Create flexible recording schedules (one-time or recurring), similar to what cron can do.
+   - Support various recurrence patterns (daily, weekly, monthly)
+   - Ensure recordings persist through application restarts
+   - Ensure the schedule of scheduled recordings  persists application restarts
+   - If the app restarts during a recording, the recording will start/resume. Stitch multiple parts together.
+   - Allow modification or cancellation of scheduled recordings
+   - When scheduling a recording, keep the source audio format.
+
+3. **Content Management**
+   - Play recordings through the web interface
+   - Download recorded files for offline use
+   - Delete unwanted recordings to manage storage
+
+4. **Storage Options**
+   - Save recordings to local storage
+   - Optionally upload to NextCloud for cloud backup/access
+   - Support for additional storage locations
+
+5. **Content Distribution**
+
+   - Generate a page listing all created podcasts. Clicking on it it will display the podcast details, the number of recordings and the link to its RSS feed to be added to a podcast player
+   - Allow public access (read only) to feeds so users can download podcasts
+
+6. **Notification System**
+   - Receive alerts when recordings complete. The alert should be “{NAME} duration recorded is HH:MM:SS and the file created is XXX MB. You can download it {LINK}"
+   - Get notifications about recording failures
+   - Support for Pushover notifications
+
+7. **User Management**
+   - There is only one user (admin) that can add new sources and schedule new recordings
+   - Admin profile management. Where users can change their username, and password
+   - Un authenticated users can only view podcasts and their feeds.
+
+8. **System Configuration**
+   - Customize application settings
+   - Set up integration with external services (NextCloud, Pushover)

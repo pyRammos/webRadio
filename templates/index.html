@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h2>Welcome to WebRadio Recorder</h2>
+            </div>
+            <div class="card-body">
+                <p class="lead">
+                    Record your favorite internet radio shows and listen to them later.
+                </p>
+                <p>
+                    WebRadio Recorder allows you to capture audio streams from any internet radio station
+                    and save them for playback at your convenience. You can schedule one-time or recurring
+                    recordings, and even generate podcasts from your recordings.
+                </p>
+                
+                {% if current_user.is_authenticated %}
+                <div class="mt-4">
+                    <h4>Quick Actions</h4>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('add_station') }}" class="btn btn-primary">Add Radio Station</a>
+                        <a href="{{ url_for('add_recording') }}" class="btn btn-success">Schedule Recording</a>
+                        <a href="{{ url_for('add_recurring_recording') }}" class="btn btn-info">Schedule Recurring Recording</a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="mt-4">
+                    <p>
+                        <a href="{{ url_for('login') }}" class="btn btn-primary">Login</a> to manage recordings and radio stations.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Server Information</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Current Time:</strong> <span id="current-time">{{ server_time }}</span></p>
+                <p><strong>Timezone:</strong> {{ server_timezone }}</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h4>Recent Podcasts</h4>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for podcast in recent_podcasts %}
+                    <a href="{{ url_for('podcast_details', id=podcast.id) }}" class="list-group-item list-group-item-action">
+                        {{ podcast.title }}
+                    </a>
+                    {% else %}
+                    <p class="text-muted">No podcasts available yet.</p>
+                    {% endfor %}
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('podcasts') }}" class="btn btn-outline-primary btn-sm">View All Podcasts</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateCurrentTime() {
+        const timeElement = document.getElementById('current-time');
+        const now = new Date();
+        timeElement.textContent = now.toLocaleString();
+        setTimeout(updateCurrentTime, 1000);
+    }
+    updateCurrentTime();
+</script>
+{% endblock %}

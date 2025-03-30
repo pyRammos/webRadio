@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - WebRadio Recorder{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>{{ title }}</h1>
+        
+        <form method="POST" class="mt-4">
+            {{ form.hidden_tag() }}
+            
+            <div class="mb-3">
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control") }}
+                {% if form.name.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.name.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.station_id.label(class="form-label") }}
+                {{ form.station_id(class="form-select") }}
+                {% if form.station_id.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.station_id.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.start_time.label(class="form-label") }}
+                <input type="datetime-local" name="start_time" id="start_time" class="form-control" required>
+                <div class="form-text">Select the date and time to start recording</div>
+                {% if form.start_time.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.start_time.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                {{ form.duration.label(class="form-label") }}
+                <div class="input-group">
+                    {{ form.duration(class="form-control") }}
+                    <span class="input-group-text">minutes</span>
+                </div>
+                {% if form.duration.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.duration.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <h4 class="mt-4">Additional Storage Options</h4>
+            
+            <div class="mb-3 form-check">
+                {{ form.save_to_local(class="form-check-input") }}
+                {{ form.save_to_local.label(class="form-check-label") }}
+            </div>
+            
+            <div class="mb-3 local-options" style="display: none;">
+                {{ form.local_base_dir.label(class="form-label") }}
+                {{ form.local_base_dir(class="form-control") }}
+                <div class="form-text">Base directory where recordings will be saved in an organized folder structure</div>
+            </div>
+            
+            <div class="mb-3 form-check">
+                {{ form.save_to_nextcloud(class="form-check-input") }}
+                {{ form.save_to_nextcloud.label(class="form-check-label") }}
+            </div>
+            
+            <div class="mb-3 nextcloud-options" style="display: none;">
+                {{ form.nextcloud_base_dir.label(class="form-label") }}
+                {{ form.nextcloud_base_dir(class="form-control") }}
+                <div class="form-text">Base directory on NextCloud where recordings will be saved</div>
+            </div>
+            
+            <h4 class="mt-4">Notification Options</h4>
+            
+            <div class="mb-3 form-check">
+                {{ form.send_notification(class="form-check-input") }}
+                {{ form.send_notification.label(class="form-check-label") }}
+                <div class="form-text">Send a Pushover notification when recording completes</div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('recordings') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Schedule Recording</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const saveToLocalCheckbox = document.getElementById('save_to_local');
+        const localOptions = document.querySelector('.local-options');
+        
+        const saveToNextcloudCheckbox = document.getElementById('save_to_nextcloud');
+        const nextcloudOptions = document.querySelector('.nextcloud-options');
+        
+        // Set default datetime value to now + 5 minutes
+        const datetimeInput = document.getElementById('start_time');
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + 5); // Set default to 5 minutes from now
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        datetimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        
+        console.log("Setting datetime value to:", datetimeInput.value);
+        
+        // Initial state
+        if (saveToLocalCheckbox.checked) {
+            localOptions.style.display = 'block';
+        }
+        
+        if (saveToNextcloudCheckbox.checked) {
+            nextcloudOptions.style.display = 'block';
+        }
+        
+        // Toggle local options
+        saveToLocalCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                localOptions.style.display = 'block';
+            } else {
+                localOptions.style.display = 'none';
+            }
+        });
+        
+        // Toggle NextCloud options
+        saveToNextcloudCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                nextcloudOptions.style.display = 'block';
+            } else {
+                nextcloudOptions.style.display = 'none';
+            }
+        });
+        
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(e) {
+            const datetimeValue = datetimeInput.value;
+            console.log("Submitting form with datetime value:", datetimeValue);
+            
+            if (!datetimeValue) {
+                e.preventDefault();
+                datetimeInput.classList.add('is-invalid');
+                
+                // Add error message if not already present
+                let errorDiv = datetimeInput.nextElementSibling.nextElementSibling;
+                if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback d-block';
+                    errorDiv.textContent = 'This field is required.';
+                    datetimeInput.parentNode.appendChild(errorDiv);
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Podcasts - WebRadio Recorder{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Podcasts</h1>
+        <p class="lead">Listen to your recorded radio shows as podcasts.</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    {% if podcasts %}
+        {% for podcast in podcasts %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    {% if podcast.image_path %}
+                        <img src="{{ url_for('static', filename='images/' + podcast.image_path.split('/')[-1]) }}" class="card-img-top podcast-image" alt="{{ podcast.title }}">
+                    {% else %}
+                        <div class="card-img-top podcast-placeholder">
+                            <i class="bi bi-music-note-beamed"></i>
+                        </div>
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ podcast.title }}</h5>
+                        <p class="card-text">{{ podcast.description }}</p>
+                    </div>
+                    <div class="card-footer">
+                        <a href="{{ url_for('podcast_details', id=podcast.id) }}" class="btn btn-primary">View Episodes</a>
+                        <a href="{{ url_for('podcast_feed', id=podcast.id) }}" class="btn btn-outline-secondary" target="_blank">
+                            <i class="bi bi-rss"></i> RSS Feed
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                No podcasts available yet. Create a recurring recording with the podcast option enabled.
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+<style>
+    .podcast-image {
+        height: 200px;
+        object-fit: cover;
+    }
+    .podcast-placeholder {
+        height: 200px;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .podcast-placeholder i {
+        font-size: 4rem;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}

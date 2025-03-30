@@ -1,0 +1,153 @@
+/* WebRadio Recorder custom styles */
+
+/* Global styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* Card styles */
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+/* Button styles */
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
+.btn-icon i {
+    margin-right: 0.5rem;
+}
+
+/* Table styles */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Form styles */
+.form-label {
+    font-weight: 500;
+}
+
+.invalid-feedback {
+    display: block;
+}
+
+/* Audio player styles */
+audio {
+    width: 100%;
+    margin: 1rem 0;
+}
+
+/* Status badges */
+.badge {
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Podcast styles */
+.podcast-image {
+    object-fit: cover;
+    height: 200px;
+}
+
+.podcast-placeholder {
+    background-color: #f8f9fa;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.podcast-placeholder i {
+    font-size: 3rem;
+    color: #6c757d;
+}
+
+/* Home page styles */
+.feature-icon {
+    font-size: 2.5rem;
+    color: #0d6efd;
+    margin-bottom: 1rem;
+}
+
+.feature-card {
+    height: 100%;
+    text-align: center;
+    padding: 1.5rem;
+}
+
+/* Recording status colors */
+.status-scheduled {
+    color: #0d6efd;
+}
+
+.status-recording {
+    color: #ffc107;
+}
+
+.status-completed {
+    color: #198754;
+}
+
+.status-failed {
+    color: #dc3545;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .navbar-text {
+        display: none;
+    }
+    
+    .btn-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 0.25rem;
+        border-radius: 0.25rem !important;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .card {
+        background-color: #2b3035;
+        color: #e9ecef;
+    }
+    
+    .form-control, .form-select {
+        background-color: #212529;
+        color: #e9ecef;
+        border-color: #495057;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        background-color: #2b3035;
+        color: #e9ecef;
+    }
+    
+    .table {
+        color: #e9ecef;
+    }
+    
+    .modal-content {
+        background-color: #2b3035;
+        color: #e9ecef;
+    }
+}
