@@ -41,9 +41,6 @@
                     </li>
                     {% endif %}
                 </ul>
-                <div class="navbar-text me-3 server-time">
-                    Server time: {{ now.strftime('%Y-%m-%d %H:%M:%S') }}
-                </div>
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
                     <li class="nav-item dropdown">
@@ -93,7 +90,6 @@
                     <span class="text-muted">WebRadio Recorder &copy; {{ now.year }}</span>
                 </div>
                 <div class="col-md-6 text-end">
-                    <span class="text-muted server-time">Server time: {{ now.strftime('%Y-%m-%d %H:%M:%S') }}</span>
                 </div>
             </div>
         </div>
@@ -101,23 +97,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script>
-        // Update server time
-        function updateServerTime() {
-            const serverTimeElements = document.querySelectorAll('.server-time');
-            if (serverTimeElements.length > 0) {
-                const now = new Date();
-                const formattedTime = now.toISOString().replace('T', ' ').substring(0, 19);
-                serverTimeElements.forEach(el => {
-                    if (el.textContent.includes('Server time:')) {
-                        el.textContent = 'Server time: ' + formattedTime;
-                    }
-                });
-                setTimeout(updateServerTime, 1000);
-            }
-        }
-        updateServerTime();
-    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
