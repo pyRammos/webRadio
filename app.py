@@ -206,20 +206,10 @@ def add_recording():
         
         # Handle additional storage locations
         if form.save_to_local.data:
-            recording.additional_local_path = os.path.join(
-                form.local_base_dir.data,
-                form.name.data,
-                now.strftime('%Y'),
-                now.strftime('%m-%b')
-            )
+            recording.additional_local_path = form.local_base_dir.data
             
         if form.save_to_nextcloud.data:
-            recording.nextcloud_path = os.path.join(
-                form.nextcloud_base_dir.data,
-                form.name.data,
-                now.strftime('%Y'),
-                now.strftime('%m-%b')
-            )
+            recording.nextcloud_path = form.nextcloud_base_dir.data
         
         db.session.add(recording)
         db.session.commit()
