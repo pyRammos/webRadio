@@ -683,6 +683,28 @@ with app.app_context():
                 hour=recurring.start_time.hour,
                 minute=recurring.start_time.minute
             )
+        elif recurring.schedule_type == 'weekdays':
+            trigger = CronTrigger(
+                day_of_week='mon,tue,wed,thu,fri',
+                hour=recurring.start_time.hour,
+                minute=recurring.start_time.minute
+            )
+        elif recurring.schedule_type == 'monthly':
+            # Handle monthly schedule with day of month
+            if recurring.days_of_week == 'last':
+                # For last day of month, use day='last'
+                trigger = CronTrigger(
+                    day='last',
+                    hour=recurring.start_time.hour,
+                    minute=recurring.start_time.minute
+                )
+            else:
+                # Use the days_of_week field as the day of month
+                trigger = CronTrigger(
+                    day=recurring.days_of_week,
+                    hour=recurring.start_time.hour,
+                    minute=recurring.start_time.minute
+                )
         else:
             # Log unknown schedule type and skip this recording
             app.logger.error(f"Unknown schedule type '{recurring.schedule_type}' for recurring recording ID {recurring.id}")
