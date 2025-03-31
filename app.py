@@ -662,6 +662,9 @@ with app.app_context():
     # Schedule recurring recordings
     recurring_recordings = RecurringRecording.query.all()
     for recurring in recurring_recordings:
+        # Default trigger in case schedule_type doesn't match any condition
+        trigger = None
+        
         if recurring.schedule_type == 'daily':
             trigger = CronTrigger(
                 hour=recurring.start_time.hour,
@@ -680,14 +683,20 @@ with app.app_context():
                 hour=recurring.start_time.hour,
                 minute=recurring.start_time.minute
             )
+        else:
+            # Log unknown schedule type and skip this recording
+            app.logger.error(f"Unknown schedule type '{recurring.schedule_type}' for recurring recording ID {recurring.id}")
+            continue
         
-        scheduler.add_job(
-            start_recording,
-            trigger=trigger,
-            args=[recurring.id, True],
-            id=f'recurring_{recurring.id}',
-            replace_existing=True
-        )
+        # Only add job if we have a valid trigger
+        if trigger:
+            scheduler.add_job(
+                start_recording,
+                trigger=trigger,
+                args=[recurring.id, True],
+                id=f'recurring_{recurring.id}',
+                replace_existing=True
+            )
     
     # Schedule job to check active recordings
     scheduler.add_job(
