@@ -54,6 +54,7 @@ login_manager.login_view = 'login'
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
+import sqlalchemy as sa
 
 # Use SQLAlchemy job store with the same database
 jobstore = SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])
@@ -71,6 +72,26 @@ scheduler = BackgroundScheduler(
         'misfire_grace_time': 60  # Allow jobs to be 60 seconds late
     }
 )
+
+# Initialize the tables before starting the scheduler
+try:
+    # Create a metadata object
+    metadata = sa.MetaData()
+    
+    # Get the jobs table definition but don't create it yet
+    jobs_t = jobstore._get_jobs_table(metadata)
+    
+    # Create an engine
+    engine = sa.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+    
+    # Create the table with checkfirst=True to avoid errors if it already exists
+    jobs_t.create(engine, checkfirst=True)
+    
+    app.logger.info("APScheduler jobs table initialized successfully")
+except Exception as e:
+    app.logger.warning(f"Error initializing APScheduler jobs table: {e}")
+
+# Now start the scheduler
 scheduler.start()
 
 @login_manager.user_loader
