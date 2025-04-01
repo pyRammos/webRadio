@@ -55,6 +55,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 import sqlalchemy as sa
+from sqlalchemy.exc import OperationalError
 
 # Use SQLAlchemy job store with the same database
 jobstore = SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])
@@ -75,21 +76,31 @@ scheduler = BackgroundScheduler(
 
 # Initialize the tables before starting the scheduler
 try:
-    # Create a metadata object
-    metadata = sa.MetaData()
-    
-    # Get the jobs table definition but don't create it yet
-    jobs_t = jobstore._get_jobs_table(metadata)
-    
-    # Create an engine
+    # Create a direct connection to the database
     engine = sa.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
     
-    # Create the table with checkfirst=True to avoid errors if it already exists
-    jobs_t.create(engine, checkfirst=True)
-    
-    app.logger.info("APScheduler jobs table initialized successfully")
+    # Try to create the table directly with SQL if it doesn't exist
+    with engine.connect() as connection:
+        try:
+            # Check if table exists first
+            inspector = sa.inspect(engine)
+            if 'apscheduler_jobs' not in inspector.get_table_names():
+                # Create the table with a basic schema that matches APScheduler's needs
+                connection.execute(sa.text("""
+                    CREATE TABLE IF NOT EXISTS apscheduler_jobs (
+                        id VARCHAR(191) NOT NULL, 
+                        next_run_time FLOAT,
+                        job_state BLOB NOT NULL, 
+                        PRIMARY KEY (id)
+                    )
+                """))
+                app.logger.info("APScheduler jobs table created successfully")
+            else:
+                app.logger.info("APScheduler jobs table already exists")
+        except OperationalError as e:
+            app.logger.warning(f"Error creating APScheduler jobs table: {e}")
 except Exception as e:
-    app.logger.warning(f"Error initializing APScheduler jobs table: {e}")
+    app.logger.warning(f"Error initializing APScheduler database: {e}")
 
 # Now start the scheduler
 scheduler.start()
