@@ -50,8 +50,27 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Initialize scheduler
-scheduler = BackgroundScheduler()
+# Initialize scheduler with database backend for job persistence
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.executors.pool import ThreadPoolExecutor
+
+# Use SQLAlchemy job store with the same database
+jobstore = SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])
+
+scheduler = BackgroundScheduler(
+    jobstores={
+        'default': jobstore
+    },
+    executors={
+        'default': ThreadPoolExecutor(20)  # Use a thread pool with max 20 threads
+    },
+    job_defaults={
+        'coalesce': True,  # Combine multiple pending executions into one
+        'max_instances': 1,  # Only allow one instance of each job to run at a time
+        'misfire_grace_time': 60  # Allow jobs to be 60 seconds late
+    }
+)
 scheduler.start()
 
 @login_manager.user_loader

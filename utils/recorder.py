@@ -14,7 +14,7 @@ import sys
 
 # Add parent directory to path to import models
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models import Recording, RecurringRecording, Podcast, PodcastEpisode, db
+from models import Recording, RecurringRecording, Podcast, PodcastEpisode, db, AppSettings, recurring_recording_instance
 from utils.notifications import send_notification
 from utils.storage import save_to_additional_locations
 
@@ -53,41 +53,89 @@ def start_recording(recording_id, is_recurring=False):
         session = get_db_session()
         
         try:
+            # Add a simple lock mechanism using the database
             if is_recurring:
+                # Check if this recording is already being processed
+                lock_key = f"recording_lock_{recording_id}"
+                from models import AppSettings
+                
+                # Try to acquire lock
+                lock = AppSettings.get(lock_key)
+                if lock and float(lock) > time.time() - 60:  # Lock expires after 60 seconds
+                    logger.info(f"Recording {recording_id} is already being processed by another worker. Skipping.")
+                    session.close()
+                    return
+                
+                # Set lock
+                AppSettings.set(lock_key, str(time.time()))
+                
                 recurring = session.query(RecurringRecording).get(recording_id)
                 if not recurring:
                     logger.error(f"Recurring recording {recording_id} not found")
+                    # Release lock before returning
+                    AppSettings.set(lock_key, "0")
                     session.close()
                     return
                 
                 # Get the audio format from the recurring recording or default to mp3
                 audio_format = recurring.format or 'mp3'
                 
-                # Create a new recording instance for this recurring recording
-                station = recurring.station
-                formatted_name = format_recording_name(recurring.name, audio_format)
+                # Check if a recording for this recurring schedule already exists for today
+                # within a reasonable time window (e.g., within the last hour)
+                now = datetime.now()
+                one_hour_ago = now - timedelta(hours=1)
                 
-                recording = Recording(
-                    name=recurring.name,
-                    station_id=recurring.station_id,
-                    start_time=datetime.now(),
-                    duration=recurring.duration,
-                    file_name=formatted_name,
-                    local_path=os.path.join(current_app.config['RECORDINGS_DIR'], formatted_name),
-                    additional_local_path=recurring.additional_local_path,
-                    nextcloud_path=recurring.nextcloud_path,
-                    format=audio_format,
-                    status='scheduled'
-                )
+                existing_recording = session.query(Recording).join(
+                    recurring_recording_instance,
+                    Recording.id == recurring_recording_instance.c.recording_id
+                ).filter(
+                    recurring_recording_instance.c.recurring_id == recurring.id,
+                    Recording.start_time >= one_hour_ago,
+                    Recording.start_time <= now
+                ).first()
                 
-                session.add(recording)
-                session.commit()
-                
-                # Associate this recording with the recurring recording
-                recurring.recordings.append(recording)
-                session.commit()
-                
-                recording_id = recording.id
+                if existing_recording:
+                    logger.info(f"Found existing recording {existing_recording.id} for recurring recording {recurring.id} within the last hour. Skipping creation of duplicate.")
+                    
+                    # If the existing recording is not in 'recording' status, update it
+                    if existing_recording.status != 'recording':
+                        existing_recording.status = 'recording'
+                        existing_recording.process_id = None  # Clear any old process ID
+                        session.commit()
+                        recording_id = existing_recording.id
+                    else:
+                        # Recording is already in progress, nothing to do
+                        # Release lock before returning
+                        AppSettings.set(lock_key, "0")
+                        session.close()
+                        return
+                else:
+                    # Create a new recording instance for this recurring recording
+                    station = recurring.station
+                    formatted_name = format_recording_name(recurring.name, audio_format)
+                    
+                    recording = Recording(
+                        name=recurring.name,
+                        station_id=recurring.station_id,
+                        start_time=datetime.now(),
+                        duration=recurring.duration,
+                        file_name=formatted_name,
+                        local_path=os.path.join(current_app.config['RECORDINGS_DIR'], formatted_name),
+                        additional_local_path=recurring.additional_local_path,
+                        nextcloud_path=recurring.nextcloud_path,
+                        format=audio_format,
+                        status='scheduled',
+                        send_notification=recurring.send_notification
+                    )
+                    
+                    session.add(recording)
+                    session.commit()
+                    
+                    # Associate this recording with the recurring recording
+                    recurring.recordings.append(recording)
+                    session.commit()
+                    
+                    recording_id = recording.id
             else:
                 recording = session.query(Recording).get(recording_id)
                 if not recording:
@@ -186,9 +234,27 @@ def start_recording(recording_id, is_recurring=False):
             if 'recording' in locals() and recording:
                 recording.status = 'failed'
                 session.commit()
+            
+            # Make sure to release the lock if there was an error
+            if is_recurring:
+                try:
+                    from models import AppSettings
+                    lock_key = f"recording_lock_{recording_id}"
+                    AppSettings.set(lock_key, "0")
+                except Exception as lock_e:
+                    logger.error(f"Error releasing lock: {str(lock_e)}")
         finally:
             # Always close the session when done
             session.close()
+            
+            # Release lock if this is a recurring recording
+            if is_recurring:
+                try:
+                    from models import AppSettings
+                    lock_key = f"recording_lock_{recording_id}"
+                    AppSettings.set(lock_key, "0")
+                except Exception as lock_e:
+                    logger.error(f"Error releasing lock in finally block: {str(lock_e)}")
 
 def monitor_recording(recording_id, process, output_file, is_recurring):
     """Monitor a recording process and handle completion."""
