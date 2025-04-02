@@ -29,8 +29,15 @@ from utils.recorder import start_recording, resume_recording, check_active_recor
 from utils.notifications import send_notification
 from utils.storage import save_to_additional_locations
 
+# Initialize Flask app
+app = Flask(__name__)
+app.config.from_object(Config)
+
 # Configure logging
-os.makedirs(os.path.dirname(app.config['LOG_FILE']), exist_ok=True)  # Ensure log directory exists
+log_dir = os.path.dirname(app.config['LOG_FILE'])
+if log_dir:  # Check if LOG_FILE has a directory component
+    os.makedirs(log_dir, exist_ok=True)  # Ensure log directory exists
+
 logging.basicConfig(
     level=app.config['LOG_LEVEL'],
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -42,10 +49,6 @@ logging.basicConfig(
 
 # Set APScheduler logger to WARNING level to reduce noise
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
-
-# Initialize Flask app
-app = Flask(__name__)
-app.config.from_object(Config)
 
 # Initialize database
 db.init_app(app)
