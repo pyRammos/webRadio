@@ -4,6 +4,7 @@ import logging
 import time
 import shutil
 import psutil
+import json
 from datetime import datetime, timedelta
 import threading
 import signal
@@ -17,6 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models import Recording, RecurringRecording, Podcast, PodcastEpisode, db, AppSettings, recurring_recording_instance
 from utils.notifications import send_notification
 from utils.storage import save_to_additional_locations
+from utils.audio import get_audio_duration, concatenate_audio_files
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +127,13 @@ def start_recording(recording_id, is_recurring=False):
                         nextcloud_path=recurring.nextcloud_path,
                         format=audio_format,
                         status='scheduled',
-                        send_notification=recurring.send_notification
+                        send_notification=recurring.send_notification,
+                        retry_count=0,
+                        partial_files=json.dumps([])
                     )
+                    
+                    # Calculate finish time
+                    recording.finish_time = recording.start_time + timedelta(minutes=recording.duration)
                     
                     session.add(recording)
                     session.commit()
@@ -272,6 +279,109 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
             recording = session.query(Recording).get(recording_id)
             
             if process.returncode == 0:
+                # Check if the recording completed before the intended finish time
+                now = datetime.now()
+                
+                # If finish_time is not set, calculate it
+                if not recording.finish_time:
+                    recording.finish_time = recording.start_time + timedelta(minutes=recording.duration)
+                    session.commit()
+                
+                # Check if we're still before the intended finish time
+                if now < recording.finish_time and recording.retry_count < 5:
+                    # Recording completed prematurely but successfully
+                    logger.info(f"Recording {recording_id} completed prematurely at {now}, should have finished at {recording.finish_time}")
+                    
+                    # Rename the current file to include part number
+                    base_path = os.path.dirname(output_file)
+                    filename = os.path.basename(output_file)
+                    name, ext = os.path.splitext(filename)
+                    part_num = recording.retry_count + 1
+                    partial_file = os.path.join(base_path, f"{name}-part{part_num}{ext}")
+                    
+                    try:
+                        # Rename the file
+                        if os.path.exists(output_file):
+                            os.rename(output_file, partial_file)
+                            
+                            # Update partial_files list
+                            partial_files = json.loads(recording.partial_files or '[]')
+                            partial_files.append(partial_file)
+                            recording.partial_files = json.dumps(partial_files)
+                            
+                            # Increment retry count
+                            recording.retry_count += 1
+                            
+                            # Set status to retrying
+                            recording.status = 'retrying'
+                            session.commit()
+                            
+                            # Wait 1 minute before retrying
+                            time.sleep(60)
+                            
+                            # Start a new recording for the remaining time
+                            remaining_minutes = int((recording.finish_time - datetime.now()).total_seconds() / 60)
+                            if remaining_minutes > 0:
+                                # Update duration to remaining time
+                                recording.duration = remaining_minutes
+                                session.commit()
+                                
+                                # Close session before starting new recording
+                                session.close()
+                                
+                                # Start a new recording
+                                start_recording(recording_id, is_recurring)
+                                return
+                            else:
+                                # No time left, mark as partial
+                                recording.status = 'partial'
+                                session.commit()
+                        else:
+                            # File doesn't exist, mark as failed
+                            recording.status = 'failed'
+                            recording.process_id = None
+                            session.commit()
+                    except Exception as e:
+                        logger.error(f"Error handling premature completion: {str(e)}")
+                        recording.status = 'failed'
+                        recording.process_id = None
+                        session.commit()
+                    
+                    return
+                
+                # Recording completed normally or we've reached max retries
+                if recording.retry_count > 0 and recording.partial_files:
+                    # We have partial recordings to concatenate
+                    try:
+                        partial_files = json.loads(recording.partial_files)
+                        
+                        # Add the current file to the list if it exists
+                        if os.path.exists(output_file):
+                            partial_files.append(output_file)
+                        
+                        # Concatenate all partial files
+                        if partial_files and len(partial_files) > 1:
+                            # Create a temporary output file
+                            temp_output = f"{output_file}.concat"
+                            
+                            # Concatenate the files
+                            if concatenate_audio_files(partial_files, temp_output):
+                                # Replace the original file with the concatenated one
+                                if os.path.exists(temp_output):
+                                    if os.path.exists(output_file):
+                                        os.remove(output_file)
+                                    os.rename(temp_output, output_file)
+                                    
+                                    # Clean up partial files
+                                    for partial_file in partial_files:
+                                        if partial_file != output_file and os.path.exists(partial_file):
+                                            try:
+                                                os.remove(partial_file)
+                                            except Exception as e:
+                                                logger.warning(f"Error removing partial file {partial_file}: {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Error concatenating partial recordings: {str(e)}")
+                
                 # Recording completed successfully
                 recording.status = 'completed'
                 recording.process_id = None  # Clear the process ID
@@ -392,7 +502,11 @@ def resume_recording(recording_id):
             if recording.process_id and is_process_running(recording.process_id):
                 logger.info(f"Recording {recording_id} process {recording.process_id} is still running, no need to resume")
                 # Update our tracking dictionary
-                end_time = recording.start_time + timedelta(minutes=recording.duration)
+                
+                # If finish_time is not set, calculate it
+                if not recording.finish_time:
+                    recording.finish_time = recording.start_time + timedelta(minutes=recording.duration)
+                    session.commit()
                 
                 # Create a dummy process object
                 class DummyProcess:
@@ -418,26 +532,59 @@ def resume_recording(recording_id):
                 active_recordings[recording_id] = {
                     'process': DummyProcess(recording.process_id),
                     'start_time': recording.start_time,
-                    'end_time': end_time,
+                    'end_time': recording.finish_time,
                     'output_file': recording.local_path,
                     'is_recurring': len(recording.recurring) > 0
                 }
                 session.close()
                 return
             
-            # Calculate remaining duration
-            elapsed_time = datetime.now() - recording.start_time
-            remaining_minutes = recording.duration - (elapsed_time.total_seconds() / 60)
-            
-            if remaining_minutes <= 0:
-                logger.info(f"Recording {recording_id} has already completed its duration")
-                recording.status = 'completed'
+            # Check if we've reached max retries
+            if recording.retry_count >= 5:
+                logger.info(f"Recording {recording_id} has reached max retry count (5)")
+                recording.status = 'partial'
                 recording.process_id = None
                 session.commit()
                 return
             
+            # Check if we're past the finish time
+            now = datetime.now()
+            
+            # If finish_time is not set, calculate it
+            if not recording.finish_time:
+                recording.finish_time = recording.start_time + timedelta(minutes=recording.duration)
+                session.commit()
+            
+            if now >= recording.finish_time:
+                logger.info(f"Recording {recording_id} has passed its finish time {recording.finish_time}")
+                recording.status = 'partial'
+                recording.process_id = None
+                session.commit()
+                return
+            
+            # Calculate remaining duration based on finish_time
+            remaining_minutes = int((recording.finish_time - now).total_seconds() / 60)
+            
+            if remaining_minutes <= 0:
+                logger.info(f"Recording {recording_id} has no remaining time")
+                recording.status = 'partial'
+                recording.process_id = None
+                session.commit()
+                return
+                
             # Update recording with new duration
-            recording.duration = int(remaining_minutes)
+            recording.duration = remaining_minutes
+            
+            # Increment retry count
+            recording.retry_count += 1
+            
+            # Update status to retrying
+            recording.status = 'retrying'
+            
+            # If this is the first retry, initialize partial_files
+            if not recording.partial_files:
+                recording.partial_files = json.dumps([])
+                
             session.commit()
             
             # Check if this is a recurring recording
@@ -448,6 +595,9 @@ def resume_recording(recording_id):
                 
             # Close the session before starting the recording
             session.close()
+            
+            # Wait 1 minute before retrying
+            time.sleep(60)
             
             # Start the recording with the remaining duration
             start_recording(recording_id, is_recurring)
@@ -470,8 +620,10 @@ def check_active_recordings():
             # Create a new session for this check
             session = get_db_session()
             
-            # Find recordings that are marked as 'recording' in the database
-            active_db_recordings = session.query(Recording).filter_by(status='recording').all()
+            # Find recordings that are marked as 'recording' or 'retrying' in the database
+            active_db_recordings = session.query(Recording).filter(
+                Recording.status.in_(['recording', 'retrying'])
+            ).all()
             
             for recording in active_db_recordings:
                 # Check if the recording is in our active_recordings dictionary
@@ -501,14 +653,16 @@ def check_active_recordings():
                                 except ProcessLookupError:
                                     pass
                         
-                        # Calculate end time based on start time and duration
-                        end_time = recording.start_time + timedelta(minutes=recording.duration)
+                        # If finish_time is not set, calculate it
+                        if not recording.finish_time:
+                            recording.finish_time = recording.start_time + timedelta(minutes=recording.duration)
+                            session.commit()
                         
                         # Add to active_recordings dictionary
                         active_recordings[recording.id] = {
                             'process': DummyProcess(recording.process_id),
                             'start_time': recording.start_time,
-                            'end_time': end_time,
+                            'end_time': recording.finish_time,
                             'output_file': recording.local_path,
                             'is_recurring': len(recording.recurring) > 0
                         }
@@ -533,6 +687,21 @@ def check_active_recordings():
                     start_recording(recording.id)
                     # Get a fresh session after the start operation
                     session = get_db_session()
+            
+            # Check for completed or failed recordings that should be retried
+            retry_candidates = session.query(Recording).filter(
+                Recording.status.in_(['completed', 'failed']),
+                Recording.retry_count < 5,
+                Recording.finish_time > datetime.now()
+            ).all()
+            
+            for recording in retry_candidates:
+                logger.info(f"Found recording {recording.id} that completed/failed but should be retried (retry count: {recording.retry_count})")
+                # Close this session before calling resume_recording which will create its own session
+                session.close()
+                resume_recording(recording.id)
+                # Get a fresh session after the resume operation
+                session = get_db_session()
         
         except Exception as e:
             logger.error(f"Error in check_active_recordings: {str(e)}")

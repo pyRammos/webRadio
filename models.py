@@ -61,16 +61,19 @@ class Recording(db.Model):
     station_id = db.Column(db.Integer, db.ForeignKey('radio_station.id'), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False)
     duration = db.Column(db.Integer, nullable=False)  # Duration in minutes
+    finish_time = db.Column(db.DateTime)  # Calculated end time (start_time + duration)
     file_name = db.Column(db.String(255))
     local_path = db.Column(db.String(255))
     additional_local_path = db.Column(db.String(255))
     nextcloud_path = db.Column(db.String(255))
-    status = db.Column(db.String(20), default='scheduled')  # scheduled, recording, completed, failed
+    status = db.Column(db.String(20), default='scheduled')  # scheduled, recording, completed, failed, partial, retrying
     file_size = db.Column(db.Integer)  # Size in bytes
     format = db.Column(db.String(10), default='mp3')  # Audio format (mp3, ogg, aac, flac, etc.)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     process_id = db.Column(db.Integer)  # Process ID of the ffmpeg process
     send_notification = db.Column(db.Boolean, default=True)  # Whether to send Pushover notification
+    retry_count = db.Column(db.Integer, default=0)  # Number of retry attempts
+    partial_files = db.Column(db.Text)  # JSON list of partial file paths
     
     def __repr__(self):
         return f'<Recording {self.name}>'
