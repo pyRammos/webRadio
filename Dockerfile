@@ -1,9 +1,8 @@
 FROM python:3.9-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies including FFmpeg
+# Install FFmpeg
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     && apt-get clean \
@@ -11,8 +10,6 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
@@ -21,15 +18,14 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/recordings /app/static/images /app/static/uploads /app/data
 
+# Make scripts executable
+RUN chmod +x /app/scripts/db_upgrade.py
+
 # Set environment variables
-ENV FLASK_APP=app.py
-ENV RECORDINGS_DIR=/app/recordings
-ENV UPLOAD_FOLDER=/app/static/images
-ENV LOG_FILE=/app/data/webradio.log
 ENV PYTHONUNBUFFERED=1
 
 # Expose port
 EXPOSE 5000
 
-# Run the application with Gunicorn instead of Flask development server
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "app:app"]
+# Command to run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
