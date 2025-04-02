@@ -122,9 +122,26 @@ Access the web interface at http://localhost:5000 after starting the application
 4. Set your default local and NextCloud storage paths
 5. Click "Update Profile"
 
-## Recent Improvements
+## Database Migrations
 
-See [AmazonQ.md](AmazonQ.md) for details on recent improvements to the application.
+When upgrading to a new version, you may need to update the database schema. Use the provided script:
+
+```bash
+# For the default container name 'webradio'
+./scripts/manual_db_upgrade.sh
+
+# For a custom container name
+./scripts/manual_db_upgrade.sh your_container_name
+```
+
+This script will:
+1. Stop the container
+2. Make a backup of the database
+3. Add the required columns to the database
+4. Create a migrations tracking table to record applied migrations
+5. Restart the container
+
+The script handles file permissions and ensures the database is properly updated before restarting the container.
 
 ## Future Enhancements
 
