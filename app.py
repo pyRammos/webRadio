@@ -30,13 +30,18 @@ from utils.notifications import send_notification
 from utils.storage import save_to_additional_locations
 
 # Configure logging
+os.makedirs(os.path.dirname(app.config['LOG_FILE']), exist_ok=True)  # Ensure log directory exists
 logging.basicConfig(
-    level=logging.INFO,
+    level=app.config['LOG_LEVEL'],
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler()
+        logging.StreamHandler(),
+        logging.FileHandler(app.config['LOG_FILE'])
     ]
 )
+
+# Set APScheduler logger to WARNING level to reduce noise
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
 # Initialize Flask app
 app = Flask(__name__)

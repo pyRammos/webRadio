@@ -19,12 +19,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/recordings /app/static/images /app/static/uploads
+RUN mkdir -p /app/recordings /app/static/images /app/static/uploads /app/data
 
 # Set environment variables
 ENV FLASK_APP=app.py
 ENV RECORDINGS_DIR=/app/recordings
 ENV UPLOAD_FOLDER=/app/static/images
+ENV LOG_FILE=/app/data/webradio.log
 ENV PYTHONUNBUFFERED=1
 
 # Expose port

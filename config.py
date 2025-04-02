@@ -1,5 +1,6 @@
 import os
 import secrets
+import logging
 
 class Config:
     # Flask configuration
@@ -14,6 +15,9 @@ class Config:
     RECORDINGS_DIR = os.environ.get('RECORDINGS_DIR') or os.path.join(BASE_DIR, 'recordings')
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(BASE_DIR, 'static', 'images')
     
+    # Log file location
+    LOG_FILE = os.environ.get('LOG_FILE') or os.path.join(BASE_DIR, 'data', 'webradio.log')
+    
     # NextCloud configuration
     NEXTCLOUD_URL = os.environ.get('NEXTCLOUD_URL')
     NEXTCLOUD_USERNAME = os.environ.get('NEXTCLOUD_USERNAME')
@@ -25,3 +29,6 @@ class Config:
     
     # FFmpeg configuration
     FFMPEG_PATH = os.environ.get('FFMPEG_PATH') or 'ffmpeg'
+    
+    # Logging configuration
+    LOG_LEVEL = os.environ.get('LOG_LEVEL') or logging.INFO
