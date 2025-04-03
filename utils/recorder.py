@@ -44,6 +44,53 @@ def get_db_session():
     Session = sessionmaker(bind=engine)
     return Session()
 
+def create_podcast_episode(recording, output_file, session, is_recurring=False):
+    """Create a podcast episode for a recording if it's part of a recurring recording with podcast enabled."""
+    if not is_recurring or not recording.recurring:
+        return
+        
+    recurring = recording.recurring[0]  # Get the associated recurring recording
+    if recurring.create_podcast and recurring.podcast:
+        podcast = recurring.podcast
+        
+        # Get the filename without extension as the episode title
+        episode_filename = os.path.basename(output_file)
+        episode_name = os.path.splitext(episode_filename)[0]
+        
+        # Add a note for partial recordings
+        status_note = " (Partial recording)" if recording.status == 'partial' else ""
+        
+        # Create a new podcast episode
+        episode = PodcastEpisode(
+            podcast_id=podcast.id,
+            title=episode_name,  # Use filename without extension as title
+            description=f"Episode recorded on {datetime.now().strftime('%Y-%m-%d')}{status_note}",
+            file_path=output_file,
+            file_size=recording.file_size,
+            duration=recording.duration * 60,  # Convert minutes to seconds
+            recording_id=recording.id,
+            publication_date=recording.start_time  # Use recording start time instead of default
+        )
+        
+        # Use a new session for committing the podcast episode to avoid interfering with the recording session
+        podcast_session = get_db_session()
+        try:
+            podcast_episode_copy = PodcastEpisode(
+                podcast_id=episode.podcast_id,
+                title=episode.title,
+                description=episode.description,
+                file_path=episode.file_path,
+                file_size=episode.file_size,
+                duration=episode.duration,
+                recording_id=episode.recording_id,
+                publication_date=episode.publication_date
+            )
+            podcast_session.add(podcast_episode_copy)
+            podcast_session.commit()
+            logger.info(f"Created podcast episode for {recording.status} recording {recording.id} ({recording.name})")
+        finally:
+            podcast_session.close()
+
 def start_recording(recording_id, is_recurring=False):
     """Start a new recording."""
     logger.info(f"Starting recording {recording_id} (recurring: {is_recurring})")
@@ -105,6 +152,8 @@ def start_recording(recording_id, is_recurring=False):
                         existing_recording.process_id = None  # Clear any old process ID
                         session.commit()
                         recording_id = existing_recording.id
+                        # Assign the recording variable to existing_recording to avoid "referenced before assignment" error
+                        recording = existing_recording
                     else:
                         # Recording is already in progress, nothing to do
                         # Release lock before returning
@@ -207,7 +256,11 @@ def start_recording(recording_id, is_recurring=False):
             # Add output file
             cmd.append(output_file)
             
-            logger.info(f"Executing command: {' '.join(cmd)}")
+            # Log the command with retry information if applicable
+            if recording.retry_count > 0:
+                logger.info(f"Retry #{recording.retry_count} for recording {recording_id} ({recording.name}) - Executing command: {' '.join(cmd)}")
+            else:
+                logger.info(f"Executing command: {' '.join(cmd)}")
             
             process = subprocess.Popen(
                 cmd,
@@ -268,6 +321,10 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
     # Import app at function level to avoid circular imports
     from app import app
     
+    # Generate a unique ID for this monitoring thread
+    monitor_id = f"{recording_id}_{time.time()}"
+    logger.debug(f"Starting monitor thread {monitor_id} for recording {recording_id}")
+    
     with app.app_context():
         # Get a new session for this thread
         session = get_db_session()
@@ -277,6 +334,12 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
             stdout, stderr = process.communicate()
             
             recording = session.query(Recording).get(recording_id)
+            
+            # Check if this monitor thread is still responsible for this recording
+            # If the recording has a different process_id than what we started with, another thread is handling it
+            if recording.process_id and recording.process_id != process.pid:
+                logger.info(f"Monitor thread {monitor_id} is no longer responsible for recording {recording_id} (current PID: {recording.process_id}, our PID: {process.pid})")
+                return
             
             if process.returncode == 0:
                 # Check if the recording completed before the intended finish time
@@ -290,7 +353,7 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                 # Check if we're still before the intended finish time
                 if now < recording.finish_time and recording.retry_count < 5:
                     # Recording completed prematurely but successfully
-                    logger.info(f"Recording {recording_id} completed prematurely at {now}, should have finished at {recording.finish_time}")
+                    logger.warning(f"Recording {recording_id} ({recording.name}) disrupted - completed prematurely at {now}, should have finished at {recording.finish_time}")
                     
                     # Rename the current file to include part number
                     base_path = os.path.dirname(output_file)
@@ -303,6 +366,7 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                         # Rename the file
                         if os.path.exists(output_file):
                             os.rename(output_file, partial_file)
+                            logger.info(f"Created partial file: {partial_file}")
                             
                             # Update partial_files list
                             partial_files = json.loads(recording.partial_files or '[]')
@@ -315,8 +379,10 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                             # Set status to retrying
                             recording.status = 'retrying'
                             session.commit()
+                            logger.info(f"Recording {recording_id} ({recording.name}) marked for retry #{recording.retry_count}")
                             
                             # Wait 1 minute before retrying
+                            logger.info(f"Waiting 60 seconds before retry attempt #{recording.retry_count}")
                             time.sleep(60)
                             
                             # Start a new recording for the remaining time
@@ -325,24 +391,120 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                                 # Update duration to remaining time
                                 recording.duration = remaining_minutes
                                 session.commit()
+                                logger.info(f"Attempting retry #{recording.retry_count} for recording {recording_id} ({recording.name}) - {remaining_minutes} minutes remaining")
+                                
+                                # Get the recurring recording ID if this is a recurring recording
+                                recurring_id = None
+                                if is_recurring and recording.recurring:
+                                    recurring_id = recording.recurring[0].id
+                                    logger.info(f"Found recurring recording ID {recurring_id} for recording {recording_id}")
+                                
+                                # Clear the process_id before starting a new recording to avoid race conditions
+                                recording.process_id = None
+                                session.commit()
                                 
                                 # Close session before starting new recording
                                 session.close()
                                 
-                                # Start a new recording
-                                start_recording(recording_id, is_recurring)
+                                # Start a new recording with the correct recurring ID
+                                if is_recurring and recurring_id:
+                                    logger.info(f"Starting retry with recurring ID {recurring_id}")
+                                    start_recording(recurring_id, is_recurring)
+                                else:
+                                    start_recording(recording_id, is_recurring)
                                 return
                             else:
                                 # No time left, mark as partial
                                 recording.status = 'partial'
                                 session.commit()
+                                logger.warning(f"No time remaining for recording {recording_id} ({recording.name}), marking as partial")
+                                
+                                # Stitch partial files together if we have any
+                                if recording.partial_files:
+                                    try:
+                                        partial_files = json.loads(recording.partial_files)
+                                        
+                                        # Concatenate all partial files
+                                        if partial_files and len(partial_files) > 1:
+                                            # Create a temporary output file with the correct extension
+                                            temp_output = f"{os.path.splitext(output_file)[0]}.concat{os.path.splitext(output_file)[1]}"
+                                            
+                                            logger.info(f"Merging {len(partial_files)} partial files for recording {recording_id} ({recording.name})")
+                                            for idx, part_file in enumerate(partial_files):
+                                                logger.info(f"  Part {idx+1}: {os.path.basename(part_file)}")
+                                            
+                                            # Concatenate the files
+                                            if concatenate_audio_files(partial_files, temp_output):
+                                                # Replace the original file with the concatenated one
+                                                if os.path.exists(temp_output):
+                                                    if os.path.exists(output_file):
+                                                        os.remove(output_file)
+                                                    os.rename(temp_output, output_file)
+                                                    logger.info(f"Successfully merged partial files into {os.path.basename(output_file)}")
+                                                    
+                                                    # Update file size for the recording
+                                                    recording.file_size = os.path.getsize(output_file)
+                                                    session.commit()
+                                                    
+                                                    # Save to additional locations if configured
+                                                    save_to_additional_locations(recording)
+                                                    
+                                                    # Create podcast episode for partial recording
+                                                    if is_recurring:
+                                                        create_podcast_episode(recording, output_file, session, is_recurring)
+                                                    
+                                                    # Send notification for partial recording
+                                                    if recording.send_notification:
+                                                        # Calculate duration and file size
+                                                        hours = recording.duration // 60
+                                                        minutes = recording.duration % 60
+                                                        file_size_mb = os.path.getsize(output_file) / (1024 * 1024)
+                                                        
+                                                        notification_message = (
+                                                            f"Recorded {hours} hour{'s' if hours != 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''} "
+                                                            f"of {recording.name} (with interruptions). The file size is {file_size_mb:.2f} MB."
+                                                        )
+                                                        send_notification(notification_message, recording.id)
+                                                    
+                                                    # Clean up partial files
+                                                    for partial_file in partial_files:
+                                                        if partial_file != output_file and os.path.exists(partial_file):
+                                                            try:
+                                                                os.remove(partial_file)
+                                                                logger.info(f"Removed partial file: {os.path.basename(partial_file)}")
+                                                            except Exception as e:
+                                                                logger.warning(f"Error removing partial file {partial_file}: {str(e)}")
+                                            else:
+                                                logger.error(f"Failed to merge partial files for recording {recording_id} ({recording.name})")
+                                        elif partial_files and len(partial_files) == 1:
+                                            # Only one partial file - rename it to the final output file
+                                            partial_file = partial_files[0]
+                                            if partial_file != output_file and os.path.exists(partial_file):
+                                                if os.path.exists(output_file):
+                                                    os.remove(output_file)
+                                                os.rename(partial_file, output_file)
+                                                logger.info(f"Renamed single partial file to {os.path.basename(output_file)}")
+                                                
+                                                # Update file size for the recording
+                                                recording.file_size = os.path.getsize(output_file)
+                                                session.commit()
+                                                
+                                                # Save to additional locations if configured
+                                                save_to_additional_locations(recording)
+                                                
+                                                # Create podcast episode for partial recording
+                                                if is_recurring:
+                                                    create_podcast_episode(recording, output_file, session, is_recurring)
+                                    except Exception as e:
+                                        logger.error(f"Error handling partial recordings for {recording_id} ({recording.name}): {str(e)}")
                         else:
                             # File doesn't exist, mark as failed
                             recording.status = 'failed'
                             recording.process_id = None
                             session.commit()
+                            logger.error(f"Output file not found for recording {recording_id} ({recording.name}), marking as failed")
                     except Exception as e:
-                        logger.error(f"Error handling premature completion: {str(e)}")
+                        logger.error(f"Error handling premature completion for recording {recording_id} ({recording.name}): {str(e)}")
                         recording.status = 'failed'
                         recording.process_id = None
                         session.commit()
@@ -364,6 +526,10 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                             # Create a temporary output file
                             temp_output = f"{output_file}.concat"
                             
+                            logger.info(f"Merging {len(partial_files)} partial files for recording {recording_id} ({recording.name})")
+                            for idx, part_file in enumerate(partial_files):
+                                logger.info(f"  Part {idx+1}: {os.path.basename(part_file)}")
+                            
                             # Concatenate the files
                             if concatenate_audio_files(partial_files, temp_output):
                                 # Replace the original file with the concatenated one
@@ -371,21 +537,55 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                                     if os.path.exists(output_file):
                                         os.remove(output_file)
                                     os.rename(temp_output, output_file)
+                                    logger.info(f"Successfully merged partial files into {os.path.basename(output_file)}")
+                                    
+                                    # Mark as partial since it was interrupted
+                                    recording.status = 'partial'
+                                    
+                                    # Update file size
+                                    recording.file_size = os.path.getsize(output_file)
+                                    session.commit()
+                                    
+                                    # Save to additional locations if configured
+                                    save_to_additional_locations(recording)
+                                    
+                                    # Create podcast episode for partial recording
+                                    if is_recurring:
+                                        create_podcast_episode(recording, output_file, session, is_recurring)
+                                    
+                                    # Send notification for partial recording
+                                    if recording.send_notification:
+                                        # Calculate duration and file size
+                                        hours = recording.duration // 60
+                                        minutes = recording.duration % 60
+                                        file_size_mb = os.path.getsize(output_file) / (1024 * 1024)
+                                        
+                                        notification_message = (
+                                            f"Recorded {hours} hour{'s' if hours != 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''} "
+                                            f"of {recording.name} (with interruptions). The file size is {file_size_mb:.2f} MB."
+                                        )
+                                        send_notification(notification_message, recording.id)
                                     
                                     # Clean up partial files
                                     for partial_file in partial_files:
                                         if partial_file != output_file and os.path.exists(partial_file):
                                             try:
                                                 os.remove(partial_file)
+                                                logger.info(f"Removed partial file: {os.path.basename(partial_file)}")
                                             except Exception as e:
                                                 logger.warning(f"Error removing partial file {partial_file}: {str(e)}")
+                            else:
+                                logger.error(f"Failed to merge partial files for recording {recording_id} ({recording.name})")
                     except Exception as e:
-                        logger.error(f"Error concatenating partial recordings: {str(e)}")
+                        logger.error(f"Error concatenating partial recordings for {recording_id} ({recording.name}): {str(e)}")
+                    
+                    # Return early since we've already handled everything for partial recordings
+                    return
                 
                 # Recording completed successfully
                 recording.status = 'completed'
                 recording.process_id = None  # Clear the process ID
-                
+
                 # Get file size
                 if os.path.exists(output_file):
                     recording.file_size = os.path.getsize(output_file)
@@ -395,29 +595,10 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
                     
                     # Create podcast episode if this is a recurring recording with podcast enabled
                     if is_recurring:
-                        recurring = recording.recurring[0]  # Get the associated recurring recording
-                        if recurring.create_podcast and recurring.podcast:
-                            podcast = recurring.podcast
-                            
-                            # Get the filename without extension as the episode title
-                            episode_filename = os.path.basename(output_file)
-                            episode_name = os.path.splitext(episode_filename)[0]
-                            
-                            # Create a new podcast episode
-                            episode = PodcastEpisode(
-                                podcast_id=podcast.id,
-                                title=episode_name,  # Use filename without extension as title
-                                description=f"Episode recorded on {datetime.now().strftime('%Y-%m-%d')}",
-                                file_path=output_file,
-                                file_size=recording.file_size,
-                                duration=recording.duration * 60,  # Convert minutes to seconds
-                                recording_id=recording.id,
-                                publication_date=recording.start_time  # Use recording start time instead of default
-                            )
-                            
-                            session.add(episode)
-                            
+                        create_podcast_episode(recording, output_file, session, is_recurring)
+                        
                         # Check if we need to delete old recordings
+                        recurring = recording.recurring[0]
                         if recurring.keep_recordings > 0:
                             # Get all recordings for this recurring recording, ordered by date
                             all_recordings = sorted(
@@ -500,7 +681,7 @@ def resume_recording(recording_id):
             
             # Check if the process is still running by PID
             if recording.process_id and is_process_running(recording.process_id):
-                logger.info(f"Recording {recording_id} process {recording.process_id} is still running, no need to resume")
+                logger.info(f"Recording {recording_id} ({recording.name}) process {recording.process_id} is still running, no need to resume")
                 # Update our tracking dictionary
                 
                 # If finish_time is not set, calculate it
@@ -541,10 +722,47 @@ def resume_recording(recording_id):
             
             # Check if we've reached max retries
             if recording.retry_count >= 5:
-                logger.info(f"Recording {recording_id} has reached max retry count (5)")
+                logger.warning(f"Recording {recording_id} ({recording.name}) has reached max retry count (5), marking as partial")
                 recording.status = 'partial'
                 recording.process_id = None
                 session.commit()
+                
+                # Stitch partial files together if we have any
+                if recording.partial_files:
+                    try:
+                        partial_files = json.loads(recording.partial_files)
+                        
+                        # Concatenate all partial files
+                        if partial_files and len(partial_files) > 1:
+                            # Create a temporary output file
+                            temp_output = f"{os.path.splitext(recording.local_path)[0]}_temp{file_ext}"
+                            
+                            logger.info(f"Merging {len(partial_files)} partial files for recording {recording_id} ({recording.name})")
+                            for idx, part_file in enumerate(partial_files):
+                                logger.info(f"  Part {idx+1}: {os.path.basename(part_file)}")
+                            
+                            # Concatenate the files
+                            if concatenate_audio_files(partial_files, temp_output):
+                                # Replace the original file with the concatenated one
+                                if os.path.exists(temp_output):
+                                    if os.path.exists(recording.local_path):
+                                        os.remove(recording.local_path)
+                                    os.rename(temp_output, recording.local_path)
+                                    logger.info(f"Successfully merged partial files into {os.path.basename(recording.local_path)}")
+                                    
+                                    # Clean up partial files
+                                    for partial_file in partial_files:
+                                        if partial_file != recording.local_path and os.path.exists(partial_file):
+                                            try:
+                                                os.remove(partial_file)
+                                                logger.info(f"Removed partial file: {os.path.basename(partial_file)}")
+                                            except Exception as e:
+                                                logger.warning(f"Error removing partial file {partial_file}: {str(e)}")
+                            else:
+                                logger.error(f"Failed to merge partial files for recording {recording_id} ({recording.name})")
+                    except Exception as e:
+                        logger.error(f"Error concatenating partial recordings for {recording_id} ({recording.name}): {str(e)}")
+                
                 return
             
             # Check if we're past the finish time
@@ -556,20 +774,94 @@ def resume_recording(recording_id):
                 session.commit()
             
             if now >= recording.finish_time:
-                logger.info(f"Recording {recording_id} has passed its finish time {recording.finish_time}")
+                logger.warning(f"Recording {recording_id} ({recording.name}) has passed its finish time {recording.finish_time}, marking as partial")
                 recording.status = 'partial'
                 recording.process_id = None
                 session.commit()
+                
+                # Stitch partial files together if we have any
+                if recording.partial_files:
+                    try:
+                        partial_files = json.loads(recording.partial_files)
+                        
+                        # Concatenate all partial files
+                        if partial_files and len(partial_files) > 1:
+                            # Create a temporary output file
+                            temp_output = f"{os.path.splitext(recording.local_path)[0]}_temp{file_ext}"
+                            
+                            logger.info(f"Merging {len(partial_files)} partial files for recording {recording_id} ({recording.name})")
+                            for idx, part_file in enumerate(partial_files):
+                                logger.info(f"  Part {idx+1}: {os.path.basename(part_file)}")
+                            
+                            # Concatenate the files
+                            if concatenate_audio_files(partial_files, temp_output):
+                                # Replace the original file with the concatenated one
+                                if os.path.exists(temp_output):
+                                    if os.path.exists(recording.local_path):
+                                        os.remove(recording.local_path)
+                                    os.rename(temp_output, recording.local_path)
+                                    logger.info(f"Successfully merged partial files into {os.path.basename(recording.local_path)}")
+                                    
+                                    # Clean up partial files
+                                    for partial_file in partial_files:
+                                        if partial_file != recording.local_path and os.path.exists(partial_file):
+                                            try:
+                                                os.remove(partial_file)
+                                                logger.info(f"Removed partial file: {os.path.basename(partial_file)}")
+                                            except Exception as e:
+                                                logger.warning(f"Error removing partial file {partial_file}: {str(e)}")
+                            else:
+                                logger.error(f"Failed to merge partial files for recording {recording_id} ({recording.name})")
+                    except Exception as e:
+                        logger.error(f"Error concatenating partial recordings for {recording_id} ({recording.name}): {str(e)}")
+                
                 return
             
             # Calculate remaining duration based on finish_time
             remaining_minutes = int((recording.finish_time - now).total_seconds() / 60)
             
             if remaining_minutes <= 0:
-                logger.info(f"Recording {recording_id} has no remaining time")
+                logger.warning(f"Recording {recording_id} ({recording.name}) has no remaining time, marking as partial")
                 recording.status = 'partial'
                 recording.process_id = None
                 session.commit()
+                
+                # Stitch partial files together if we have any
+                if recording.partial_files:
+                    try:
+                        partial_files = json.loads(recording.partial_files)
+                        
+                        # Concatenate all partial files
+                        if partial_files and len(partial_files) > 1:
+                            # Create a temporary output file
+                            temp_output = f"{os.path.splitext(recording.local_path)[0]}_temp{file_ext}"
+                            
+                            logger.info(f"Merging {len(partial_files)} partial files for recording {recording_id} ({recording.name})")
+                            for idx, part_file in enumerate(partial_files):
+                                logger.info(f"  Part {idx+1}: {os.path.basename(part_file)}")
+                            
+                            # Concatenate the files
+                            if concatenate_audio_files(partial_files, temp_output):
+                                # Replace the original file with the concatenated one
+                                if os.path.exists(temp_output):
+                                    if os.path.exists(recording.local_path):
+                                        os.remove(recording.local_path)
+                                    os.rename(temp_output, recording.local_path)
+                                    logger.info(f"Successfully merged partial files into {os.path.basename(recording.local_path)}")
+                                    
+                                    # Clean up partial files
+                                    for partial_file in partial_files:
+                                        if partial_file != recording.local_path and os.path.exists(partial_file):
+                                            try:
+                                                os.remove(partial_file)
+                                                logger.info(f"Removed partial file: {os.path.basename(partial_file)}")
+                                            except Exception as e:
+                                                logger.warning(f"Error removing partial file {partial_file}: {str(e)}")
+                            else:
+                                logger.error(f"Failed to merge partial files for recording {recording_id} ({recording.name})")
+                    except Exception as e:
+                        logger.error(f"Error concatenating partial recordings for {recording_id} ({recording.name}): {str(e)}")
+                
                 return
                 
             # Update recording with new duration
@@ -584,25 +876,37 @@ def resume_recording(recording_id):
             # If this is the first retry, initialize partial_files
             if not recording.partial_files:
                 recording.partial_files = json.dumps([])
-                
+            
+            # Clear the process_id before starting a new recording to avoid race conditions
+            recording.process_id = None
             session.commit()
+            logger.info(f"Preparing retry #{recording.retry_count} for recording {recording_id} ({recording.name}) - {remaining_minutes} minutes remaining")
             
             # Check if this is a recurring recording
             is_recurring = False
+            recurring_id = None
             recurring_ids = [r.id for r in recording.recurring]
             if recurring_ids:
                 is_recurring = True
+                recurring_id = recurring_ids[0]  # Get the first recurring ID
+                logger.info(f"Found recurring ID {recurring_id} for recording {recording_id}")
                 
             # Close the session before starting the recording
             session.close()
             
             # Wait 1 minute before retrying
+            logger.info(f"Waiting 60 seconds before retry attempt #{recording.retry_count} for recording {recording_id}")
             time.sleep(60)
             
             # Start the recording with the remaining duration
-            start_recording(recording_id, is_recurring)
+            logger.info(f"Starting retry #{recording.retry_count} for recording {recording_id}")
+            if is_recurring and recurring_id:
+                logger.info(f"Using recurring ID {recurring_id} for retry")
+                start_recording(recurring_id, is_recurring)
+            else:
+                start_recording(recording_id, is_recurring)
         except Exception as e:
-            logger.error(f"Error in resume_recording: {str(e)}")
+            logger.error(f"Error in resume_recording for {recording_id}: {str(e)}")
         finally:
             # Always close the session
             if 'session' in locals() and session:
