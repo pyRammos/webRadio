@@ -47,6 +47,11 @@ def concatenate_audio_files(file_list, output_file):
                 else:
                     logger.warning(f"File not found, skipping: {file_path}")
         
+        # Get the file extension to determine output format
+        file_ext = os.path.splitext(output_file)[1].lstrip('.')
+        if not file_ext:
+            file_ext = 'mp3'  # Default to mp3 if no extension
+        
         # Run FFmpeg to concatenate the files
         cmd = [
             'ffmpeg',
