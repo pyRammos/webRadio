@@ -1,9 +1,11 @@
 # Python bytecode files
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+.pytest_cache/
 
 # Virtual Environment
 venv/
@@ -35,6 +37,7 @@ static/images/
 .vscode/
 *.swp
 *.swo
+*.bak
 
 # OS specific files
 .DS_Store
@@ -42,3 +45,10 @@ Thumbs.db
 
 # Example files
 example.rss
+
+# Temporary files
+concat_list.txt
+
+# Application data and test directories
+data/
+docker_test/
