@@ -53,6 +53,9 @@ def start_recording(recording_id, is_recurring=False):
         session = get_db_session()
         
         try:
+            # Store necessary data before closing the session
+            recording_data = {}
+            
             if is_recurring:
                 recurring = session.query(RecurringRecording).get(recording_id)
                 if not recurring:
@@ -99,26 +102,29 @@ def start_recording(recording_id, is_recurring=False):
             recording.status = 'recording'
             session.commit()
             
-            # Get the station URL
-            station = recording.station
-            stream_url = station.url
-            
-            # Get the audio format or default to mp3
-            audio_format = recording.format or 'mp3'
+            # Store all necessary data before closing the session
+            recording_data = {
+                'id': recording.id,
+                'stream_url': recording.station.url,
+                'audio_format': recording.format or 'mp3',
+                'output_file': recording.local_path,
+                'duration': recording.duration
+            }
             
             # Get FFmpeg path from app settings
             from models import AppSettings
             app_settings = session.query(AppSettings).first()
             ffmpeg_path = app_settings.ffmpeg_path if app_settings and app_settings.ffmpeg_path else 'ffmpeg'
             
-            # Determine output file
-            output_file = recording.local_path
+            # Close the session before starting the FFmpeg process
+            session.close()
             
             # Calculate duration in seconds
-            duration_seconds = recording.duration * 60
+            duration_seconds = recording_data['duration'] * 60
             
             # Set encoding parameters based on format
             encoding_params = []
+            audio_format = recording_data['audio_format']
             if audio_format == 'mp3':
                 encoding_params = ['-c:a', 'libmp3lame', '-q:a', '2']
             elif audio_format == 'ogg':
@@ -137,9 +143,9 @@ def start_recording(recording_id, is_recurring=False):
             cmd = [
                 ffmpeg_path,
                 '-y',  # Overwrite output file if exists
-                '-i', stream_url,
+                '-i', recording_data['stream_url'],
                 '-t', str(duration_seconds)
-            ] + encoding_params + [output_file]
+            ] + encoding_params + [recording_data['output_file']]
             
             logger.info(f"Executing command: {' '.join(cmd)}")
             
@@ -151,28 +157,32 @@ def start_recording(recording_id, is_recurring=False):
                 universal_newlines=True
             )
             
-            # Update recording with process ID
-            recording.process_id = process.pid
-            session.commit()
-            
-            # Close the session before starting the monitoring thread
-            session.close()
+            # Update recording with process ID - need a new session
+            session = get_db_session()
+            try:
+                recording = session.query(Recording).get(recording_id)
+                recording.process_id = process.pid
+                session.commit()
+            except Exception as e:
+                logger.error(f"Error updating process ID: {str(e)}")
+            finally:
+                session.close()
             
             # Start a thread to monitor the recording
             monitor_thread = threading.Thread(
                 target=monitor_recording,
-                args=(recording_id, process, output_file, is_recurring)
+                args=(recording_id, process, recording_data['output_file'], is_recurring)
             )
             monitor_thread.daemon = True
             monitor_thread.start()
             
             # Add to active recordings dictionary
-            end_time = datetime.now() + timedelta(minutes=recording.duration)
+            end_time = datetime.now() + timedelta(minutes=recording_data['duration'])
             active_recordings[recording_id] = {
                 'process': process,
                 'start_time': datetime.now(),
                 'end_time': end_time,
-                'output_file': output_file,
+                'output_file': recording_data['output_file'],
                 'is_recurring': is_recurring
             }
             
@@ -182,15 +192,14 @@ def start_recording(recording_id, is_recurring=False):
             logger.error(f"Error starting recording: {str(e)}")
             try:
                 # Try to update the recording status to failed
-                recording = session.query(Recording).get(recording_id)
-                if recording:
+                if 'recording' in locals() and recording:
                     recording.status = 'failed'
                     session.commit()
             except Exception as inner_e:
                 logger.error(f"Error updating recording status: {str(inner_e)}")
-            
-            # Close the session
-            session.close()
+            finally:
+                # Close the session
+                session.close()
             return None
 
 def format_recording_name(name, audio_format='mp3'):
