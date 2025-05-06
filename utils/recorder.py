@@ -149,12 +149,12 @@ def start_recording(recording_id, is_recurring=False):
             
             logger.info(f"Executing command: {' '.join(cmd)}")
             
-            # Start the process
+            # Start the process - use binary mode to avoid encoding issues
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                universal_newlines=True
+                # Don't use text mode/universal_newlines to avoid UTF-8 decoding issues
             )
             
             # Update recording with process ID - need a new session
@@ -223,8 +223,14 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
         session = get_db_session()
         
         try:
-            # Wait for process to complete
-            stdout, stderr = process.communicate()
+            # Wait for process to complete - use binary mode to avoid encoding issues
+            try:
+                stdout_data, stderr_data = process.communicate()
+                # Don't try to decode the output as it may contain non-UTF-8 characters
+            except Exception as e:
+                logger.error(f"Error communicating with FFmpeg process: {str(e)}")
+                stdout_data = b""
+                stderr_data = b""
             
             recording = session.query(Recording).get(recording_id)
             
