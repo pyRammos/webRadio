@@ -1,25 +1,31 @@
 services:
-  webradio:
+  webradio2:
     image: teleram/webradio:latest
-    container_name: webradio
+    container_name: webradio2
     restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
-      - ./data/recordings:/app/recordings
-      - ./data/images:/app/static/images
-      - ./data/webradio.db:/data/webradio.db
-      - /etc/localtime:/etc/localtime:ro  # Mount host timezone (read-only)
-    env_file:
-      - .env
+      - ./recordings:/app/recordings
+      - ./images:/app/static/images
+      - ./data:/data
+      - ./local:/localrec
+#      - /etc/localtime:/etc/localtime:ro  # Mount host timezone (read-only)
+#      - /etc/timezone:/etc/timezone:ro
+
     environment:
       - DATABASE_URL=sqlite:////data/webradio.db
+      - DATABASE_PATH=/data/webradio.db
       - RECORDINGS_DIR=/app/recordings
       - UPLOAD_FOLDER=/app/static/images
-      - TZ=Europe/London  # Set your timezone here (change as needed)
+      - TZ=Europe/Athens 
+      - SECRET_KEY=KarapiperimPiperimPiperim
+      - LOG_LEVEL=WARNING
     networks:
-      - webradio-network
+      - dockernet
+
 
 networks:
-  webradio-network:
-    driver: bridge
+  dockernet:
+    name: dockernet
+    external: true
