@@ -41,8 +41,13 @@ logging.basicConfig(
     ]
 )
 
-# Set APScheduler logger to WARNING to silence the job execution messages
-logging.getLogger('apscheduler').setLevel(logging.WARNING)
+# If LOG_LEVEL is INFO or lower, set specific loggers to WARNING
+# This ensures verbose loggers are quieter while still respecting higher log levels
+if log_level <= logging.INFO:
+    # Set APScheduler logger to WARNING to silence the job execution messages
+    logging.getLogger('apscheduler').setLevel(logging.WARNING)
+    # Set Werkzeug logger to WARNING to silence HTTP request messages
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -777,4 +782,6 @@ def settings():
     return render_template('settings.html', form=form)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    # Use production mode in Docker environment
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', debug=debug_mode)
