@@ -1,193 +1,77 @@
-# WebRadio Recorder
+# WebRadio4 - Radio Recording Application
 
-A web application for capturing internet audio streams and saving them for playback later. Perfect for recording radio shows to listen to at your convenience.
+## Overview
+WebRadio4 is a Docker-based application for scheduling and recording radio streams. It provides a web interface for managing radio stations, scheduling recordings, and creating podcasts from recorded content.
 
 ## Features
+- Record radio streams using FFmpeg
+- Schedule one-time or recurring recordings
+- Automatically create podcasts from recordings
+- Store recordings locally or on NextCloud
+- Send notifications when recordings complete
 
-- Record audio from any internet radio station
-- Schedule one-time and recurring recordings
-- Resume interrupted recordings automatically
-- Generate podcasts from recurring recordings
-- Multiple storage options (local, NextCloud)
-- Notification system for recording events
-- Web-based playback interface
-- Multi-format audio support (MP3, OGG, AAC, FLAC, WAV)
-- Centralized settings management
+## Docker Setup
+The application is available as a Docker image at `teleram/webradio:latest` or with specific version tags like `teleram/webradio:2.1.2`.
 
-## Requirements
-
-- Python 3.8+
-- FFmpeg
-- Web server (for production deployment)
-- Docker (optional, for containerized deployment)
-
-## Installation
-
-### Standard Installation
-
-1. Clone this repository
-   ```bash
-   git clone https://github.com/yourusername/webradio.git
-   cd webradio
-   ```
-
-2. Install dependencies
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Configure the application settings in `.env` (copy from `.env.example`)
-   ```bash
-   cp .env.example .env
-   # Edit .env with your preferred settings
-   ```
-
-4. Run the application
-   ```bash
-   python app.py
-   ```
-
-### Docker Installation
-
-#### Option 1: Using Pre-built Docker Image
-
-1. Clone this repository
-   ```bash
-   git clone https://github.com/yourusername/webradio.git
-   cd webradio
-   ```
-
-2. Run the setup script to create necessary directories and files
-   ```bash
-   ./setup_docker.sh
-   ```
-
-3. Start the application
-   ```bash
-   docker compose up -d
-   ```
-
-#### Option 2: Building Your Own Docker Image
-
-1. Clone this repository
-   ```bash
-   git clone https://github.com/yourusername/webradio.git
-   cd webradio
-   ```
-
-2. Run the setup script to create necessary directories and files
-   ```bash
-   ./setup_docker.sh
-   ```
-
-3. Build the Docker image
-   ```bash
-   docker build -t webradio:latest .
-   ```
-
-4. Edit docker-compose.yml to use your local image
-   ```bash
-   # Change "image: teleram/webradio:latest" to "image: webradio:latest"
-   ```
-
-5. Start the application
-   ```bash
-   docker compose up -d
-   ```
-
-## Usage
-
-Access the web interface at http://localhost:5000 after starting the application.
-
-### Default Login
-
-- Username: admin
-- Password: admin
-
-**Important**: Change the default password immediately after first login.
-
-### Settings Configuration
-
-1. Log in as admin
-2. Click on your username in the top-right corner
-3. Select "Settings" from the dropdown menu
-4. Configure NextCloud, Pushover, FFmpeg settings, and default audio format
-5. Click "Save Settings"
-
-### Setting Default Storage Paths
-
-1. Log in as admin
-2. Click on your username in the top-right corner
-3. Select "Profile" from the dropdown menu
-4. Set your default local and NextCloud storage paths
-5. Click "Update Profile"
-
-## Recent Improvements
-
-See [AmazonQ.md](AmazonQ.md) for details on recent improvements to the application.
-
-## Future Enhancements
-
-### 1. Advanced Recording Features
-1.1. **Smart recording detection**: Automatically detect silence or non-music segments to split recordings  
-1.2. **Audio normalization**: Level out volume differences between recordings  
-1.3. **Audio fingerprinting**: Detect and tag songs within recordings  
-1.4. **Scheduled post-processing**: Allow users to schedule audio processing tasks (trimming, splitting) after recording  
-
-### 2. User Experience Improvements
-2.1. **Dark mode**: Add a toggle for light/dark theme  
-2.2. **Mobile-responsive design**: Optimize the interface for mobile devices  
-2.3. **Drag-and-drop scheduling**: Visual calendar interface for scheduling recordings  
-2.4. **Audio waveform visualization**: Show waveforms for recorded audio  
-2.5. **Keyboard shortcuts**: Add keyboard shortcuts for common actions  
-
-### 3. Content Management
-3.1. **Tagging system**: Allow users to tag recordings and filter by tags  
-3.2. **Search functionality**: Full-text search across recording names and descriptions  
-3.3. **Batch operations**: Select multiple recordings for batch actions (delete, move, tag)  
-3.4. **Auto-categorization**: Suggest categories based on recording content or schedule  
-
-### 4. Integration Enhancements
-4.1. **Additional storage options**: Add support for S3, Google Drive, Dropbox  
-4.2. **DLNA/UPnP support**: Make recordings available to smart TVs and media players  
-4.3. **RSS feed generation**: Create RSS feeds for non-podcast recordings  
-4.4. **Calendar integration**: Export recording schedules to calendar apps (iCal, Google Calendar)  
-4.5. **Voice assistant integration**: Control via Alexa, Google Assistant, or Home Assistant  
-
-### 5. Technical Improvements
-5.1. **API endpoints**: Create a REST API for programmatic access  
-5.2. **WebSocket support**: Real-time updates for recording status  
-5.3. **User roles and permissions**: Add admin, editor, and viewer roles  
-5.4. **Multi-user support**: Allow multiple users with separate settings and recordings  
-5.5. **Recording presets**: Save common recording configurations as presets  
-5.6. **Backup and restore**: Automated backup of application data and settings  
-
-### 6. Analytics and Monitoring
-6.1. **Recording statistics**: Track recording frequency, duration, and storage usage  
-6.2. **Health monitoring**: Dashboard showing system status and resource usage  
-6.3. **Error reporting**: Improved error handling with notifications  
-6.4. **Usage analytics**: Track most-used features and popular stations  
-
-### 7. Audio Processing
-7.1. **Audio effects**: Add options for compression, EQ, noise reduction  
-7.2. **Automatic chapter markers**: Detect program segments and add chapter markers  
-7.3. **Transcription**: Integrate with speech-to-text services for searchable transcripts  
-7.4. **Audio cleanup**: Remove ads or silence automatically  
-
-### 8. Social Features
-8.1. **Sharing options**: Generate shareable links for recordings  
-8.2. **Public podcast directory**: Option to list podcasts in a public directory  
-8.3. **Comments/notes**: Allow adding notes to recordings for future reference  
-8.4. **Collaborative playlists**: Allow multiple users to contribute to recording collections  
-
-## Docker Hub
-
-The WebRadio Recorder Docker image is available on Docker Hub:
-
-```bash
-docker pull teleram/webradio:latest
+### Docker Compose Example
+```yaml
+services:
+  webradio:
+    image: teleram/webradio:latest
+    container_name: webradio
+    restart: unless-stopped
+    ports:
+      - "5850:5000"
+    volumes:
+      - /path/to/recordings:/app/recordings
+      - /path/to/images:/app/static/images
+      - /path/to/data:/data
+      - /path/to/local/recordings:/localrec
+    environment:
+      - DATABASE_URL=sqlite:////data/webradio.db
+      - DATABASE_PATH=/data/webradio.db
+      - RECORDINGS_DIR=/app/recordings
+      - UPLOAD_FOLDER=/app/static/images
+      - TZ=Europe/Athens
+      - SECRET_KEY=YourSecretKeyHere
+      - LOG_LEVEL=WARNING
+      - FFMPEG_PATH=/usr/bin/ffmpeg
 ```
 
-## License
+## Environment Variables
+- `DATABASE_URL`: SQLite database URL
+- `DATABASE_PATH`: Path to the SQLite database file
+- `RECORDINGS_DIR`: Directory to store recordings
+- `UPLOAD_FOLDER`: Directory for uploaded images
+- `TZ`: Timezone for the application
+- `SECRET_KEY`: Secret key for Flask sessions
+- `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
+- `FFMPEG_PATH`: Path to the FFmpeg executable (required for recording)
 
-[MIT License](LICENSE)
+## Volumes
+- `/app/recordings`: Where recordings are stored
+- `/app/static/images`: For station logos and other images
+- `/data`: For the SQLite database
+- `/localrec`: Optional additional storage location
+
+## Schedule Types
+WebRadio4 supports the following schedule types for recurring recordings:
+
+- **Daily**: Records every day at the same time
+- **Weekdays**: Records Monday through Friday at the same time
+- **Weekends**: Records Saturday and Sunday at the same time
+- **Weekly**: Records on a specific day of the week
+- **Monthly**: Records on a specific day of the month
+
+## Version History
+- 2.1.2: Fixed logging configuration to respect LOG_LEVEL environment variable and silence APScheduler messages
+- 2.1.1: Added support for 'weekdays' and 'monthly' schedule types
+- 2.1.0: Added FFMPEG_PATH environment variable to fix recording issues
+- 2.0.0: Initial public release
+
+## Troubleshooting
+If you encounter recording errors like `'AppSettings' object has no attribute 'ffmpeg_path'`, make sure to set the `FFMPEG_PATH` environment variable in your Docker Compose file.
+
+If you see an error like `Unknown schedule type 'weekdays'`, update to version 2.1.1 or later which adds support for this schedule type.
+
+To reduce log verbosity, set the `LOG_LEVEL` environment variable to `WARNING` or `ERROR` in your Docker Compose file.
