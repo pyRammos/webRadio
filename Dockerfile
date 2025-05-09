@@ -26,6 +26,7 @@ ENV FLASK_APP=app.py
 ENV RECORDINGS_DIR=/app/recordings
 ENV UPLOAD_FOLDER=/app/static/images
 ENV PYTHONUNBUFFERED=1
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
 
 # Expose port
 EXPOSE 5000

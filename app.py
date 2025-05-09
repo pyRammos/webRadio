@@ -30,13 +30,19 @@ from utils.notifications import send_notification
 from utils.storage import save_to_additional_locations
 
 # Configure logging
+log_level_name = os.environ.get('LOG_LEVEL', 'INFO').upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler()
     ]
 )
+
+# Set APScheduler logger to WARNING to silence the job execution messages
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -680,6 +686,21 @@ with app.app_context():
         elif recurring.schedule_type == 'weekends':
             trigger = CronTrigger(
                 day_of_week='sat,sun',
+                hour=recurring.start_time.hour,
+                minute=recurring.start_time.minute
+            )
+        elif recurring.schedule_type == 'weekdays':
+            trigger = CronTrigger(
+                day_of_week='mon,tue,wed,thu,fri',
+                hour=recurring.start_time.hour,
+                minute=recurring.start_time.minute
+            )
+        elif recurring.schedule_type == 'monthly':
+            # For monthly recordings, use the day_of_week from the days_of_week field
+            # or default to the 1st day of the month if not specified
+            day = recurring.days_of_week if recurring.days_of_week else '1'
+            trigger = CronTrigger(
+                day=day,
                 hour=recurring.start_time.hour,
                 minute=recurring.start_time.minute
             )
