@@ -111,10 +111,22 @@ def start_recording(recording_id, is_recurring=False):
                 'duration': recording.duration
             }
             
-            # Get FFmpeg path from app settings
-            from models import AppSettings
-            app_settings = session.query(AppSettings).first()
-            ffmpeg_path = app_settings.ffmpeg_path if app_settings and app_settings.ffmpeg_path else 'ffmpeg'
+            # Get FFmpeg path from environment variable or app settings
+            ffmpeg_path = os.environ.get('FFMPEG_PATH')
+            
+            # If not in environment, try to get from app settings
+            if not ffmpeg_path:
+                from models import AppSettings
+                app_settings = session.query(AppSettings).first()
+                if app_settings:
+                    # Try to get ffmpeg_path attribute, but handle the case where it doesn't exist
+                    ffmpeg_path = getattr(app_settings, 'ffmpeg_path', None)
+            
+            # Default to 'ffmpeg' if not found anywhere
+            if not ffmpeg_path:
+                ffmpeg_path = 'ffmpeg'
+                
+            logger.info(f"Using FFmpeg path: {ffmpeg_path}")
             
             # Close the session before starting the FFmpeg process
             session.close()
