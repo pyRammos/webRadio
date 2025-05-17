@@ -525,20 +525,8 @@ def check_active_recordings():
                         logger.info(f"Found interrupted recording {recording.id}, resuming")
                         resume_recording(recording.id)
             
-            # Check for recordings that should have started
-            scheduled_recordings = session.query(Recording).filter_by(status='scheduled').all()
-            for recording in scheduled_recordings:
-                if recording.start_time <= datetime.now():
-                    logger.info(f"Starting scheduled recording {recording.id}")
-                    # Close the session before starting the recording
-                    session.close()
-                    
-                    # Start the recording
-                    is_recurring = len(recording.recurring) > 0
-                    start_recording(recording.id, is_recurring)
-                    
-                    # Get a new session
-                    session = get_db_session()
+            # Removed code that starts scheduled recordings - this is now handled exclusively by the scheduler
+            # to prevent duplicate recordings and session errors
             
         except Exception as e:
             logger.error(f"Error in check_active_recordings: {str(e)}")
