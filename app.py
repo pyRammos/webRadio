@@ -170,8 +170,35 @@ def delete_station(id):
 @app.route('/recordings')
 @login_required
 def recordings():
-    recordings = Recording.query.all()
-    return render_template('recordings.html', recordings=recordings)
+    # Get sort parameters from query string
+    sort_by = request.args.get('sort', 'start_time')  # Default sort by start_time
+    sort_dir = request.args.get('dir', 'desc')  # Default direction is descending
+    
+    # Define allowed sort fields to prevent SQL injection
+    allowed_sort_fields = {
+        'name': Recording.name,
+        'station': RadioStation.name,
+        'start_time': Recording.start_time,
+        'duration': Recording.duration,
+        'status': Recording.status
+    }
+    
+    # Use the requested sort field if valid, otherwise default to start_time
+    sort_field = allowed_sort_fields.get(sort_by, Recording.start_time)
+    
+    # Apply sort direction
+    if sort_dir == 'asc':
+        sort_field = sort_field.asc()
+    else:
+        sort_field = sort_field.desc()
+    
+    # Query with sorting and join station for station name sorting
+    recordings = Recording.query.join(RadioStation).order_by(sort_field).all()
+    
+    return render_template('recordings.html', 
+                          recordings=recordings, 
+                          current_sort=sort_by, 
+                          current_dir=sort_dir)
 
 @app.route('/recordings/add', methods=['GET', 'POST'])
 @login_required
@@ -780,6 +807,47 @@ def settings():
         form.default_audio_format.data = AppSettings.get('default_audio_format', app.config.get('DEFAULT_AUDIO_FORMAT', 'mp3'))
     
     return render_template('settings.html', form=form)
+
+@app.route('/recordings/delete_selected', methods=['POST'])
+@login_required
+def delete_selected_recordings():
+    recording_ids = request.form.getlist('recording_ids')
+    
+    if not recording_ids:
+        flash('No recordings were selected.', 'warning')
+        return redirect(url_for('recordings'))
+    
+    deleted_count = 0
+    for id in recording_ids:
+        try:
+            recording = Recording.query.get(id)
+            if recording:
+                # Remove from scheduler if still scheduled
+                try:
+                    scheduler.remove_job(f'recording_{recording.id}')
+                except:
+                    pass
+                
+                # Delete the file if it exists
+                if recording.local_path:
+                    # Check for file with any supported extension
+                    base_path = os.path.splitext(recording.local_path)[0]
+                    supported_formats = ['mp3', 'ogg', 'aac', 'flac', 'wav']
+                    
+                    for fmt in supported_formats:
+                        file_path = f"{base_path}.{fmt}"
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            break
+                
+                db.session.delete(recording)
+                deleted_count += 1
+        except Exception as e:
+            app.logger.error(f"Error deleting recording {id}: {str(e)}")
+    
+    db.session.commit()
+    flash(f'Successfully deleted {deleted_count} recordings.', 'success')
+    return redirect(url_for('recordings'))
 
 if __name__ == '__main__':
     # Use production mode in Docker environment

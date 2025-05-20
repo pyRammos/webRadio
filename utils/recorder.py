@@ -159,7 +159,9 @@ def start_recording(recording_id, is_recurring=False):
                 '-t', str(duration_seconds)
             ] + encoding_params + [recording_data['output_file']]
             
-            logger.info(f"Executing command: {' '.join(cmd)}")
+            # Always print the FFmpeg command regardless of log level
+            print(f"FFMPEG COMMAND: {' '.join(cmd)}")
+            logger.warning(f"Executing FFmpeg command: {' '.join(cmd)}")
             
             # Start the process - use binary mode to avoid encoding issues
             process = subprocess.Popen(
@@ -174,6 +176,7 @@ def start_recording(recording_id, is_recurring=False):
             try:
                 recording = session.query(Recording).get(recording_id)
                 recording.process_id = process.pid
+                recording.status = 'recording'  # Explicitly set to 'recording' status
                 session.commit()
             except Exception as e:
                 logger.error(f"Error updating process ID: {str(e)}")
@@ -561,7 +564,7 @@ def retry_recording(recording_id, retry_count):
             
             total_duration_seconds = recording.duration * 60
             elapsed_seconds = (now - recording.start_time).total_seconds()
-            completion_percentage = elapsed_seconds / total_duration_seconds
+            completion_percentage = elapsed_seconds / total_duration_seconds if total_duration_seconds > 0 else 1.0
             
             if remaining_seconds <= -time_threshold_seconds or completion_percentage >= percentage_threshold:
                 # No meaningful time remaining or recording is mostly complete
@@ -587,13 +590,18 @@ def retry_recording(recording_id, retry_count):
             # Update recording with new duration
             recording.duration = remaining_minutes
             recording.status = 'scheduled'  # Reset status to scheduled for the retry
-            session.commit()
             
-            # Close the session before starting the recording
+            # Check if this is a recurring recording - do this BEFORE closing the session
+            is_recurring_recording = False
+            recurring_query = session.query(db.Table('recurring_recording_instance')).filter_by(recording_id=recording.id).first()
+            if recurring_query:
+                is_recurring_recording = True
+                logger.info(f"Recording {recording_id} is part of a recurring recording")
+            
+            session.commit()
             session.close()
             
             # Start the recording with the remaining duration
-            is_recurring_recording = len(recording.recurring) > 0
             start_recording(recording_id, is_recurring_recording)
             
         except Exception as e:
