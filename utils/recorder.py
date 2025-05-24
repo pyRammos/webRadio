@@ -593,7 +593,11 @@ def retry_recording(recording_id, retry_count):
             
             # Check if this is a recurring recording - do this BEFORE closing the session
             is_recurring_recording = False
-            recurring_query = session.query(db.Table('recurring_recording_instance')).filter_by(recording_id=recording.id).first()
+            # Use a direct SQL query instead of trying to query the table object
+            recurring_query = session.execute(
+                "SELECT recurring_id FROM recurring_recording_instance WHERE recording_id = :rec_id",
+                {"rec_id": recording.id}
+            ).first()
             if recurring_query:
                 is_recurring_recording = True
                 logger.info(f"Recording {recording_id} is part of a recurring recording")
