@@ -64,6 +64,7 @@ WebRadio4 supports the following schedule types for recurring recordings:
 - **Monthly**: Records on a specific day of the month
 
 ## Version History
+- 2.1.9: Added FFmpeg error logging and improved stream connection parameters
 - 2.1.8: Fixed SQLAlchemy query in retry_recording function to properly handle recording retries
 - 2.1.7: Previous version changes
 - 2.1.2: Fixed logging configuration to respect LOG_LEVEL environment variable and silence APScheduler messages
