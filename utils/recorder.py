@@ -155,6 +155,10 @@ def start_recording(recording_id, is_recurring=False):
             cmd = [
                 ffmpeg_path,
                 '-y',  # Overwrite output file if exists
+                '-reconnect', '1',
+                '-reconnect_streamed', '1',
+                '-reconnect_delay_max', '30',
+                '-reconnect_attempts', '10',
                 '-i', recording_data['stream_url'],
                 '-t', str(duration_seconds)
             ] + encoding_params + [recording_data['output_file']]
@@ -326,6 +330,13 @@ def monitor_recording(recording_id, process, output_file, is_recurring):
             else:
                 # FFmpeg process failed or was interrupted
                 logger.warning(f"FFmpeg process exited with code {process.returncode} for recording {recording_id} ({recording.name})")
+                
+                # Log FFmpeg error output to help diagnose issues
+                try:
+                    stderr_str = stderr_data.decode('utf-8', errors='replace')
+                    logger.error(f"FFmpeg error output for recording {recording_id}: {stderr_str}")
+                except Exception as e:
+                    logger.error(f"Could not decode FFmpeg error output: {str(e)}")
                 
                 # Check if this was a user-initiated stop (code 255 often indicates SIGTERM)
                 if process.returncode == 255:
